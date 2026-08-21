@@ -105,7 +105,7 @@ public class EnemyAI {
 
     /** Time until a bullet enters the enemy's hitbox, or -1 if it never does. */
     private float bulletTimeToEnemy(Bullet b, Shooter enemy) {
-        return bulletTimeToEnemy(b.x, b.y, b.vx, b.vy, enemy, GameWorld.BULLET_HIT_RADIUS);
+        return bulletTimeToEnemy(b.x, b.y, b.vx, b.vy, enemy, CollisionSystem.BULLET_HIT_RADIUS);
     }
 
     /**
@@ -123,7 +123,7 @@ public class EnemyAI {
         float lvy = -sin * bvx + cos * bvy;
         float best = -1f;
         for (float[] hb : Shooter.HITBOXES) {
-            float t = GameWorld.hitTimeAlong(lx, ly, lvx, lvy,
+            float t = Geometry.hitTimeAlong(lx, ly, lvx, lvy,
                     hb[0] - hitRadius, hb[1] - hitRadius,
                     hb[2] + hitRadius, hb[3] + hitRadius);
             if (t >= 0f && (best < 0f || t < best)) best = t;
