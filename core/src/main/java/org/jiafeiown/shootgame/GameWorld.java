@@ -706,17 +706,17 @@ public class GameWorld {
             font.draw(batch, "Press R to restart", (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.30f);
         } else {
             // top-left counters: enemies killed and current round
-            font.getData().setScale(1.6f);
+            font.getData().setScale(2.5f);
             font.setColor(textCol);
             String killsStr = "KILLS " + kills;
             layout.setText(font, killsStr);
-            font.draw(batch, killsStr, 24f, WORLD_H - 20f);
+            font.draw(batch, killsStr, 26f, WORLD_H - 22f);
 
-            font.getData().setScale(1.15f);
+            font.getData().setScale(1.5f);
             font.setColor(hintCol);
             String roundStr = "ROUND " + round;
             layout.setText(font, roundStr);
-            font.draw(batch, roundStr, 26f, WORLD_H - 44f);
+            font.draw(batch, roundStr, 30f, WORLD_H - 60f);
 
             font.getData().setScale(1.6f);
             font.setColor(hintCol);
