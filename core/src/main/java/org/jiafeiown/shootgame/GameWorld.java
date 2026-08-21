@@ -17,11 +17,9 @@ public class GameWorld {
     public static final float WORLD_H = 1280f;
     public static final float GROUND_TOP = 60f;
 
-    private static final float ENEMY_TOLERANCE = 0.10f;
-    private static final float DODGE_HORIZON = 0.5f;
-    private static final float DODGE_COOLDOWN = 0.6f;
     private static final float BULLET_COLLIDE_RADIUS = 12f;
-    private static final float BULLET_HIT_RADIUS = 4f;
+    /** Shared by {@link EnemyAI} (bullet intercept math) and bullet-vs-shooter hits. */
+    static final float BULLET_HIT_RADIUS = 4f;
     private static final int MAX_ENEMIES = 6;
     private static final float ENEMY_GROWTH = 1.05f;
     /** Read by {@link WorldRenderer} for the shield's fade-out. */
@@ -30,6 +28,7 @@ public class GameWorld {
     static final float ROUND_BANNER_TIME = 2.5f;
 
     private WorldRenderer renderer;
+    private final EnemyAI enemyAI = new EnemyAI(this);
 
     Shooter player;
     final Array<Shooter> enemies = new Array<>();
@@ -114,7 +113,7 @@ public class GameWorld {
             log.debug("Invincibility shield expired");
         }
         for (Shooter e : enemies) e.update(dt);
-        updateEnemyAI(dt);
+        enemyAI.update(dt);
 
         for (int i = bullets.size - 1; i >= 0; i--) {
             Bullet b = bullets.get(i);
@@ -164,124 +163,8 @@ public class GameWorld {
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) reset();
         if (gameOver) return;
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE) && player.fireCooldown <= 0f) {
-            player.shoot(this);
-            addFlash(player);
-            burst(muzzleX(player), muzzleY(player), Palette.smokeCol, 6, 110f);
+            fire(player);
         }
-    }
-
-    private void updateEnemyAI(float dt) {
-        if (player.dead) return;
-        for (Shooter enemy : enemies) {
-            if (!enemy.dead) updateEnemyAI(enemy, dt);
-        }
-    }
-
-    private void updateEnemyAI(Shooter enemy, float dt) {
-        if (enemy.dodgeCooldown > 0f) enemy.dodgeCooldown -= dt;
-
-        // a player bullet is about to hit: fire in a direction whose recoil
-        // shoves the enemy off the bullet's path (the shot also heads back
-        // toward the player, so the dodge doubles as a counter-attack)
-        if (enemy.fireCooldown <= 0f && enemy.dodgeCooldown <= 0f) {
-            Bullet threat = findIncomingThreat(enemy);
-            if (threat != null) {
-                enemy.angle = dodgeAimAngle(enemy, threat);
-                enemy.shoot(this);
-                addFlash(enemy);
-                burst(muzzleX(enemy), muzzleY(enemy), Palette.smokeCol, 6, 110f);
-                enemy.dodgeCooldown = DODGE_COOLDOWN;
-                return;
-            }
-        }
-
-        // resting on the ground: the muzzle doesn't spin, so it can't align
-        // to aim; fire every so often just to hop back into the air
-        if (enemy.grounded) {
-            if (enemy.fireCooldown <= 0f) {
-                enemy.shoot(this);
-                addFlash(enemy);
-                burst(muzzleX(enemy), muzzleY(enemy), Palette.smokeCol, 6, 110f);
-                enemy.fireCooldown = MathUtils.random(0.7f, 1.1f);
-            }
-            return;
-        }
-
-        float dx = player.x - enemy.x;
-        float dy = player.y - enemy.y;
-        float dist = (float) Math.sqrt(dx * dx + dy * dy);
-
-        // lead the target: predict where the player will be when the bullet
-        // arrives, accounting for gravity on the player and the world bounds
-        float flight = dist / Shooter.BULLET_SPEED;
-        float px = player.x + player.vx * flight;
-        float py = player.y + player.vy * flight
-                - 0.5f * Shooter.GRAVITY * flight * flight;
-        px = MathUtils.clamp(px, 20f, GameWorld.WORLD_W - 20f);
-        py = MathUtils.clamp(py, GameWorld.GROUND_TOP + 18f, GameWorld.WORLD_H - 18f);
-        float desired = MathUtils.atan2(py - enemy.y, px - enemy.x);
-
-        // drift back toward the player when too far away
-        if (dist > 460f) desired += MathUtils.clamp((dist - 460f) / 800f, 0f, 0.5f) * MathUtils.PI;
-
-        // the enemy muzzle spins like the player's; fire only when it sweeps
-        // across the predicted aim, in short bursts
-        float diff = desired - enemy.angle;
-        while (diff > MathUtils.PI) diff -= MathUtils.PI2;
-        while (diff < -MathUtils.PI) diff += MathUtils.PI2;
-
-        if (enemy.fireCooldown <= 0f && Math.abs(diff) < ENEMY_TOLERANCE) {
-            enemy.shoot(this);
-            addFlash(enemy);
-            burst(muzzleX(enemy), muzzleY(enemy), Palette.smokeCol, 6, 110f);
-            if (enemy.burst <= 0) enemy.burst = 3;
-            enemy.burst--;
-            enemy.fireCooldown = enemy.burst > 0 ? 0.15f : MathUtils.random(0.9f, 1.5f);
-        }
-    }
-
-    /** Nearest player bullet that will hit the given enemy within the dodge horizon, or null. */
-    private Bullet findIncomingThreat(Shooter enemy) {
-        Bullet best = null;
-        float bestT = Float.MAX_VALUE;
-        for (int i = 0; i < bullets.size; i++) {
-            Bullet b = bullets.get(i);
-            if (b.dead || !b.owner.isPlayer) continue;
-            float t = bulletTimeToEnemy(b, enemy);
-            if (t >= 0f && t < DODGE_HORIZON && t < bestT) {
-                best = b;
-                bestT = t;
-            }
-        }
-        return best;
-    }
-
-    /** Time until a bullet enters the enemy's hitbox, or -1 if it never does. */
-    private float bulletTimeToEnemy(Bullet b, Shooter enemy) {
-        return bulletTimeToEnemy(b.x, b.y, b.vx, b.vy, enemy, BULLET_HIT_RADIUS);
-    }
-
-    /**
-     * Static core of {@link #bulletTimeToEnemy(Bullet, Shooter)} so the
-     * ray-vs-hitbox math is unit-testable without a live GameWorld.
-     */
-    static float bulletTimeToEnemy(float bx, float by, float bvx, float bvy,
-                                   Shooter enemy, float hitRadius) {
-        float cos = MathUtils.cos(enemy.angle);
-        float sin = MathUtils.sin(enemy.angle);
-        float dx = bx - enemy.x, dy = by - enemy.y;
-        float lx = cos * dx + sin * dy;
-        float ly = -sin * dx + cos * dy;
-        float lvx = cos * bvx + sin * bvy;
-        float lvy = -sin * bvx + cos * bvy;
-        float best = -1f;
-        for (float[] hb : Shooter.HITBOXES) {
-            float t = hitTimeAlong(lx, ly, lvx, lvy,
-                    hb[0] - hitRadius, hb[1] - hitRadius,
-                    hb[2] + hitRadius, hb[3] + hitRadius);
-            if (t >= 0f && (best < 0f || t < best)) best = t;
-        }
-        return best;
     }
 
     /** Time until a ray (px,py)+(vx,vy)*t enters the box, or -1 if it never does. */
@@ -306,32 +189,6 @@ public class GameWorld {
         }
         if (tmax < 0f || tmin > tmax) return -1f;
         return Math.max(0f, tmin);
-    }
-
-    /**
-     * Direction to fire so that the recoil shoves the enemy perpendicular to
-     * the incoming bullet's path, away from it.
-     */
-    private float dodgeAimAngle(Shooter enemy, Bullet b) {
-        return dodgeAimAngle(enemy.x, enemy.y, b.x, b.y, b.vx, b.vy);
-    }
-
-    /**
-     * Static core of {@link #dodgeAimAngle(Shooter, Bullet)} so the aim math
-     * is unit-testable without a live GameWorld.
-     */
-    static float dodgeAimAngle(float ex, float ey, float bx, float by, float bvx, float bvy) {
-        float pushX = -bvy, pushY = bvx;
-        float len = (float) Math.sqrt(pushX * pushX + pushY * pushY);
-        if (len < 0.0001f) return 0f;
-        pushX /= len;
-        pushY /= len;
-        float rx = ex - bx, ry = ey - by;
-        if (pushX * rx + pushY * ry < 0f) {
-            pushX = -pushX;
-            pushY = -pushY;
-        }
-        return MathUtils.atan2(-pushY, -pushX);
     }
 
     private void checkBulletHits() {
@@ -475,6 +332,16 @@ public class GameWorld {
                 b.vy = 0f;
             }
         }
+    }
+
+    /**
+     * Fires a shooter's weapon: spawns the bullet plus the muzzle flash and
+     * smoke burst. Shared by the player input and {@link EnemyAI}.
+     */
+    void fire(Shooter s) {
+        s.shoot(this);
+        addFlash(s);
+        burst(muzzleX(s), muzzleY(s), Palette.smokeCol, 6, 110f);
     }
 
     public void spawnBullet(Shooter owner, float x, float y, float angle) {
