@@ -2,13 +2,19 @@ package org.jiafeiown.shootgame.lwjgl3;
 
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jiafeiown.shootgame.Main;
 
 /** Launches the desktop (LWJGL3) application. */
 public class Lwjgl3Launcher {
+    private static final Logger log = LogManager.getLogger(Lwjgl3Launcher.class);
+
     public static void main(String[] args) {
         if (StartupHelper.startNewJvmIfRequired()) return; // This handles macOS support and helps on Windows.
-        createApplication();
+        log.info("Starting ShootGame (LWJGL3 backend, libGDX {})", com.badlogic.gdx.Version.VERSION);
+        createApplication(); // blocks until the window is closed
+        log.info("ShootGame exited");
     }
 
     private static Lwjgl3Application createApplication() {
@@ -22,7 +28,7 @@ public class Lwjgl3Launcher {
         //// screen tearing. This setting doesn't always work on Linux, so the line after is a safeguard.
         configuration.useVsync(true);
         //// Limits FPS to the refresh rate of the currently active monitor, plus 1 to try to match fractional
-        //// refresh rates. The Vsync setting above should limit the actual FPS to match the monitor.
+        //// refresh rates. The Vsync setting above should limit the actual FPS to match the configuration.
         configuration.setForegroundFPS(60);
         //// If you remove the above line and set Vsync to false, you can get unlimited FPS, which can be
         //// useful for testing performance, but can also be very stressful to some hardware.
@@ -32,6 +38,8 @@ public class Lwjgl3Launcher {
         //// You can change these files; they are in lwjgl3/src/main/resources/ .
         //// They can also be loaded from the root of assets/ .
         configuration.setWindowIcon("libgdx128.png", "libgdx64.png", "libgdx32.png", "libgdx16.png");
+
+        log.info("Window: {}x{} | vsync={} | foregroundFPS={}", 600, 960, true, 60);
 
         //// This could improve compatibility with Windows machines with buggy OpenGL drivers, Macs
         //// with Apple Silicon that have to emulate compatibility with OpenGL anyway, and more.

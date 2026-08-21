@@ -3,6 +3,9 @@ eclipse.project.name = appName + '-core'
 
 dependencies {
   api "com.badlogicgames.gdx:gdx:$gdxVersion"
+  // Log4j2 API only: game logic logs against the API, the concrete
+  // implementation (log4j-core) is provided by the desktop launcher.
+  api "org.apache.logging.log4j:log4j-api:$log4j2Version"
 
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-annotations:$graalHelperVersion"

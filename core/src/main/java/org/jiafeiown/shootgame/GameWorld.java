@@ -14,9 +14,13 @@ import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /** Owns the whole game: entities, physics, shooting, AI and rendering. */
 public class GameWorld {
+
+    private static final Logger log = LogManager.getLogger(GameWorld.class);
 
     public static final float WORLD_W = 800f;
     public static final float WORLD_H = 1280f;
@@ -87,10 +91,12 @@ public class GameWorld {
         font = new BitmapFont();
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        log.info("GameWorld created (world {}x{}, ground top {})", WORLD_W, WORLD_H, GROUND_TOP);
         reset();
     }
 
     public void reset() {
+        log.info("Game reset");
         player = new Shooter(true, WORLD_W * 0.25f, GROUND_TOP + 80f, Shooter.BASE_HP, 0.28f,
                 playerBody, playerBarrel, playerGrip, playerSlide, playerBullet, playerBulletCore);
         player.spin = 2.2f;
@@ -120,6 +126,7 @@ public class GameWorld {
             e.damage = dmg;
             enemies.add(e);
         }
+        log.info("Round {} started: {} enemies (hp={}, dmg={})", round, count, hp, dmg);
     }
 
     public void render() {
@@ -190,6 +197,7 @@ public class GameWorld {
 
         // player died: freeze the world and show the settlement screen
         if (player.dead) {
+            log.info("Game over: player defeated in round {} | kills={}, damageDealt={}", round, kills, damageDealt);
             gameOver = true;
             return;
         }
@@ -202,8 +210,11 @@ public class GameWorld {
             }
         }
         if (allDead) {
+            int healed = Math.round(player.maxHp * 0.30f);
             round++;
-            player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * 0.30f));
+            player.hp = Math.min(player.maxHp, player.hp + healed);
+            log.info("Round {} cleared | healed +{} HP ({} → {}) | starting round {}",
+                    round - 1, healed, player.hp - healed, player.hp, round);
             spawnRound();
         }
     }
@@ -374,7 +385,9 @@ public class GameWorld {
             }
             if (!player.dead && player.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
                 b.dead = true;
+                int hpBefore = player.hp;
                 player.takeDamage(b.owner.damage, b.nx, b.ny);
+                log.debug("Player hit for {} damage (hp {} → {})", b.owner.damage, hpBefore, player.hp);
                 burst(b.x, b.y, playerHit, 10, 190f);
             } else {
                 for (Shooter e : enemies) {
@@ -384,7 +397,10 @@ public class GameWorld {
                         e.takeDamage(b.owner.damage, b.nx, b.ny);
                         if (b.owner.isPlayer) damageDealt += b.owner.damage;
                         burst(b.x, b.y, enemyHit, 10, 190f);
-                        if (e.dead) kills++;
+                        if (e.dead) {
+                            kills++;
+                            log.debug("Enemy #{} killed | kills={}, damageDealt={}", enemies.indexOf(e, true), kills, damageDealt);
+                        }
                         break;
                     }
                 }

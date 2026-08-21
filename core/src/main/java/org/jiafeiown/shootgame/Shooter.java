@@ -2,9 +2,12 @@ package org.jiafeiown.shootgame;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.MathUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /** A pistol fighter. Both the player and the enemy are Shooters. */
 public class Shooter {
+    private static final Logger log = LogManager.getLogger(Shooter.class);
     public static final float GRAVITY = 900f;
     public static final float RECOIL = 230f;
     public static final float UP_BOOST = 400f;
@@ -50,6 +53,8 @@ public class Shooter {
         this.slide = slide;
         this.bullet = bullet;
         this.bulletCore = bulletCore;
+        log.debug("{} spawned at ({}, {}) hp={} fireInterval={}",
+                isPlayer ? "Player" : "Enemy", x, y, maxHp, fireInterval);
     }
 
     public void update(float dt) {
@@ -140,6 +145,7 @@ public class Shooter {
     }
 
     public void shoot(GameWorld world) {
+        log.trace("{} fires at angle {} rad from ({}, {})", isPlayer ? "Player" : "Enemy", angle, x, y);
         fireCooldown = fireInterval;
         float dx = MathUtils.cos(angle);
         float dy = MathUtils.sin(angle);
@@ -164,6 +170,11 @@ public class Shooter {
         vy += ny * KNOCKBACK;
         // being hit interrupts the spinning muzzle
         spinStun = SPIN_STUN;
-        if (hp == 0) dead = true;
+        if (hp == 0) {
+            dead = true;
+            log.debug("{} died ({} damage taken)", isPlayer ? "Player" : "Enemy", dmg);
+        } else {
+            log.trace("{} took {} damage (hp {} → {})", isPlayer ? "Player" : "Enemy", dmg, hp + dmg, hp);
+        }
     }
 }

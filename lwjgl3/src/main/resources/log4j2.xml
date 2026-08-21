@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Log4j2 configuration for ShootGame.
+
+  Appenders:
+    - Console : colour-coded output straight to stdout (always on).
+    - File    : rolling log file, one per day (or every 10 MB), kept under
+                logs/ in the process working directory, gzipped on rollover.
+
+  Tuning at runtime:
+    The configuration is re-read every 30 seconds (monitorInterval), so you
+    can raise/lower a logger's level while the game is running by editing
+    this file. The 'gdx' logger receives libGDX's own Gdx.app.* output.
+-->
+<Configuration status="WARN" monitorInterval="30">
+  <Appenders>
+    <Console name="Console" target="SYSTEM_OUT">
+      <PatternLayout pattern="%d{HH:mm:ss.SSS} %highlight{%-5level}{FATAL=red, ERROR=red, WARN=yellow, INFO=green, DEBUG=cyan, TRACE=white} [%t] %logger{24} - %msg%n"/>
+    </Console>
+    <RollingFile name="File"
+                 fileName="logs/shootgame.log"
+                 filePattern="logs/shootgame-%d{yyyy-MM-dd}-%i.log.gz">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%t] %logger{36} - %msg%n"/>
+      <Policies>
+        <TimeBasedTriggeringPolicy/>
+        <SizeBasedTriggeringPolicy size="10 MB"/>
+      </Policies>
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+  </Appenders>
+
+  <Loggers>
+    <!-- libGDX / LWJGL internals are noisy; keep them quiet unless debugging. -->
+    <Logger name="gdx" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="File"/>
+    </Logger>
+    <Logger name="com.badlogic" level="WARN" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="File"/>
+    </Logger>
+    <Logger name="org.lwjgl" level="WARN" additivity="false">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="File"/>
+    </Logger>
+
+    <Root level="INFO">
+      <AppenderRef ref="Console"/>
+      <AppenderRef ref="File"/>
+    </Root>
+  </Loggers>
+</Configuration>
