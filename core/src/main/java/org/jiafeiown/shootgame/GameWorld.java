@@ -767,16 +767,16 @@ public class GameWorld {
         } else {
             // top-left counters: enemies killed and current round
             font.getData().setScale(2.5f);
-            font.setColor(textCol);
-            String killsStr = "KILLS " + kills;
-            layout.setText(font, killsStr);
-            font.draw(batch, killsStr, 26f, WORLD_H - 22f);
-
-            font.getData().setScale(1.5f);
             font.setColor(hintCol);
             String roundStr = "ROUND " + round;
             layout.setText(font, roundStr);
-            font.draw(batch, roundStr, 30f, WORLD_H - 60f);
+            font.draw(batch, roundStr, 26f, WORLD_H - 22f);
+
+            font.getData().setScale(1.5f);
+            font.setColor(textCol);
+            String killsStr = "KILLS " + kills;
+            layout.setText(font, killsStr);
+            font.draw(batch, killsStr, 30f, WORLD_H - 60f);
 
             font.getData().setScale(1.6f);
             font.setColor(hintCol);
