@@ -33,6 +33,9 @@ public class Shooter {
     public int damage;
     public float dodgeCooldown;
     public int burst;
+    /** Remaining seconds of damage immunity; decremented in {@link #update}.
+     *  Only the player uses it today, but it is generic on purpose. */
+    public float invincibleTime;
 
     public final float halfW = 51f;
     public final float halfH = 21f;
@@ -59,6 +62,7 @@ public class Shooter {
 
     public void update(float dt) {
         if (dead) return;
+        if (invincibleTime > 0f) invincibleTime = Math.max(0f, invincibleTime - dt);
         fireCooldown -= dt;
         recoilVis *= (float) Math.exp(-dt * 14f);
 
@@ -164,6 +168,7 @@ public class Shooter {
 
     public void takeDamage(int dmg, float nx, float ny) {
         if (dead) return;
+        if (invincibleTime > 0f) return;
         hp -= dmg;
         if (hp < 0) hp = 0;
         vx += nx * KNOCKBACK;

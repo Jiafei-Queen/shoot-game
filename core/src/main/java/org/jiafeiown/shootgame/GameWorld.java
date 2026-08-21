@@ -33,6 +33,7 @@ public class GameWorld {
     private static final float BULLET_HIT_RADIUS = 4f;
     private static final int MAX_ENEMIES = 6;
     private static final float ENEMY_GROWTH = 1.05f;
+    private static final float INVINCIBLE_TIME = 3f;
 
     private OrthographicCamera cam;
     private FitViewport viewport;
@@ -50,6 +51,7 @@ public class GameWorld {
     private int kills = 0;
     private int damageDealt = 0;
     private boolean gameOver;
+    private float time;
 
     // soft, muted palette
     private final Color bgTop = new Color(0.176f, 0.208f, 0.267f, 1f);
@@ -71,6 +73,8 @@ public class GameWorld {
     private final Color smokeCol = new Color(0.85f, 0.88f, 0.93f, 1f);
     private final Color playerHit = new Color(0.55f, 0.95f, 0.85f, 1f);
     private final Color enemyHit = new Color(1f, 0.72f, 0.68f, 1f);
+    private final Color shieldCol = new Color(0.45f, 0.78f, 0.88f, 1f);
+    private final Color shieldGlow = new Color(0.25f, 0.55f, 0.70f, 1f);
     private final Color healthBg = new Color(0.06f, 0.07f, 0.09f, 0.85f);
     private final Color healthHi = new Color(0.56f, 0.88f, 0.70f, 1f);
     private final Color healthLo = new Color(0.92f, 0.53f, 0.50f, 1f);
@@ -104,6 +108,7 @@ public class GameWorld {
         kills = 0;
         damageDealt = 0;
         gameOver = false;
+        time = 0f;
         bullets.clear();
         particles.clear();
         flashes.clear();
@@ -126,6 +131,8 @@ public class GameWorld {
             e.damage = dmg;
             enemies.add(e);
         }
+        // the player is briefly invincible at the top of every round
+        player.invincibleTime = INVINCIBLE_TIME;
         log.info("Round {} started: {} enemies (hp={}, dmg={})", round, count, hp, dmg);
     }
 
@@ -136,6 +143,11 @@ public class GameWorld {
         viewport.apply();
         ScreenUtils.clear(bgBottom.r, bgBottom.g, bgBottom.b, 1f);
         shape.setProjectionMatrix(cam.combined);
+        // Blending must be (re-)enabled every frame: on some backends the state
+        // set once in create() is lost before the first frame, which would make
+        // every translucent shape (shadows, flashes, the shield) render opaque.
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
         shape.begin(ShapeRenderer.ShapeType.Filled);
         shape.setTransformMatrix(idM.idt());
@@ -147,6 +159,7 @@ public class GameWorld {
         for (MuzzleFlash f : flashes) drawFlash(f);
         drawShooterFilled(player);
         for (Shooter e : enemies) drawShooterFilled(e);
+        drawShieldFilled();
         for (Particle p : particles) drawParticle(p);
         if (!player.dead) drawHealthBar(player);
         for (Shooter e : enemies) if (!e.dead) drawHealthBar(e);
@@ -161,6 +174,7 @@ public class GameWorld {
         if (!gameOver) {
             drawShooterOutline(player);
             for (Shooter e : enemies) drawShooterOutline(e);
+            drawShieldRing();
             if (!player.dead) drawHealthBarBorder(player);
             for (Shooter e : enemies) if (!e.dead) drawHealthBarBorder(e);
         }
@@ -171,7 +185,14 @@ public class GameWorld {
 
     private void update(float dt) {
         if (gameOver) return;
+        time += dt;
+        float invBefore = player.invincibleTime;
         player.update(dt);
+        if (invBefore > 0f && player.invincibleTime <= 0f) {
+            // the shield pops out with a spark burst when the grace period ends
+            burst(player.x, player.y, shieldCol, 14, 240f);
+            log.debug("Invincibility shield expired");
+        }
         for (Shooter e : enemies) e.update(dt);
         updateEnemyAI(dt);
 
@@ -385,10 +406,16 @@ public class GameWorld {
             }
             if (!player.dead && player.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
                 b.dead = true;
-                int hpBefore = player.hp;
-                player.takeDamage(b.owner.damage, b.nx, b.ny);
-                log.debug("Player hit for {} damage (hp {} → {})", b.owner.damage, hpBefore, player.hp);
-                burst(b.x, b.y, playerHit, 10, 190f);
+                if (player.invincibleTime > 0f) {
+                    // round-start shield absorbs the bullet
+                    burst(b.x, b.y, shieldCol, 8, 170f);
+                    log.debug("Bullet absorbed by invincibility shield");
+                } else {
+                    int hpBefore = player.hp;
+                    player.takeDamage(b.owner.damage, b.nx, b.ny);
+                    log.debug("Player hit for {} damage (hp {} → {})", b.owner.damage, hpBefore, player.hp);
+                    burst(b.x, b.y, playerHit, 10, 190f);
+                }
             } else {
                 for (Shooter e : enemies) {
                     if (e.dead) continue;
@@ -650,6 +677,30 @@ public class GameWorld {
         shape.setTransformMatrix(idM.idt());
     }
 
+    /** Round-start invincibility bubble: a soft translucent dome over the player. */
+    private void drawShieldFilled() {
+        if (player.dead || player.invincibleTime <= 0f) return;
+        float p = MathUtils.clamp(player.invincibleTime / INVINCIBLE_TIME, 0f, 1f);
+        float pulse = 0.5f + 0.5f * MathUtils.sin(time * 26f);
+        float rad = 102f + 18f * pulse;
+        shape.setColor(shieldGlow.r, shieldGlow.g, shieldGlow.b, 0.2f * p);
+        shape.circle(player.x, player.y, rad + 36f);
+        shape.setColor(shieldCol.r, shieldCol.g, shieldCol.b, 0.50f * p);
+        shape.circle(player.x, player.y, rad);
+    }
+
+    /** Pulsing rings that mark the boundary of the invincibility shield. */
+    private void drawShieldRing() {
+        if (player.dead || player.invincibleTime <= 0f) return;
+        float p = MathUtils.clamp(player.invincibleTime / INVINCIBLE_TIME, 0f, 1f);
+        float pulse = 0.5f + 0.5f * MathUtils.sin(time * 26f);
+        float rad = 102f + 18f * pulse;
+        shape.setColor(shieldCol.r, shieldCol.g, shieldCol.b, 0.80f * p);
+        shape.circle(player.x, player.y, rad + 12f);
+        shape.setColor(shieldGlow.r, shieldGlow.g, shieldGlow.b, 0.80f * p);
+        shape.circle(player.x, player.y, rad - 12f);
+    }
+
     private void drawParticle(Particle p) {
         float a = MathUtils.clamp(p.life / p.maxLife, 0f, 1f);
         shape.setColor(p.color.r, p.color.g, p.color.b, a);
@@ -723,6 +774,14 @@ public class GameWorld {
             String hint = "Hold SPACE to shoot   ·   R to restart";
             layout.setText(font, hint);
             font.draw(batch, hint, (WORLD_W - layout.width) * 0.5f, 38f);
+
+            if (player.invincibleTime > 0f) {
+                font.getData().setScale(1.3f);
+                font.setColor(shieldGlow);
+                String shieldStr = "INVINCIBLE";
+                layout.setText(font, shieldStr);
+                font.draw(batch, shieldStr, player.x - layout.width * 0.5f, player.y + player.halfHeight() + 42f);
+            }
         }
 
         batch.end();
