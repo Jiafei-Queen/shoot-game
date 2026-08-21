@@ -3,21 +3,12 @@ package org.jiafeiown.shootgame;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.GlyphLayout;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.utils.viewport.FitViewport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-/** Owns the whole game: entities, physics, shooting, AI and rendering. */
+/** Owns the whole game: entities, physics, shooting, AI and game state. Rendering lives in {@link WorldRenderer}. */
 public class GameWorld {
 
     private static final Logger log = LogManager.getLogger(GameWorld.class);
@@ -33,73 +24,32 @@ public class GameWorld {
     private static final float BULLET_HIT_RADIUS = 4f;
     private static final int MAX_ENEMIES = 6;
     private static final float ENEMY_GROWTH = 1.05f;
-    private static final float INVINCIBLE_TIME = 3f;
-    private static final float ROUND_BANNER_TIME = 2.5f;
+    /** Read by {@link WorldRenderer} for the shield's fade-out. */
+    static final float INVINCIBLE_TIME = 3f;
+    /** Read by {@link WorldRenderer} for the round banner's timing. */
+    static final float ROUND_BANNER_TIME = 2.5f;
 
-    private OrthographicCamera cam;
-    private FitViewport viewport;
-    private ShapeRenderer shape;
-    private SpriteBatch batch;
-    private BitmapFont font;
+    private WorldRenderer renderer;
 
-    private Shooter player;
-    private final Array<Shooter> enemies = new Array<>();
-    private final Array<Bullet> bullets = new Array<>();
-    private final Array<Particle> particles = new Array<>();
-    private final Array<MuzzleFlash> flashes = new Array<>();
+    Shooter player;
+    final Array<Shooter> enemies = new Array<>();
+    final Array<Bullet> bullets = new Array<>();
+    final Array<Particle> particles = new Array<>();
+    final Array<MuzzleFlash> flashes = new Array<>();
 
-    private int round = 1;
-    private int kills = 0;
-    private int damageDealt = 0;
-    private boolean gameOver;
-    private float time;
+    int round = 1;
+    int kills = 0;
+    int damageDealt = 0;
+    boolean gameOver;
+    float time;
     /** Counts down while the round-start transition banner is on screen. */
-    private float roundBannerTime = 0f;
+    float roundBannerTime = 0f;
     /** Enemy count of the current round, shown under the banner title. */
-    private int roundEnemies = 0;
-
-    // soft, muted palette
-    private final Color bgTop = new Color(0.176f, 0.208f, 0.267f, 1f);
-    private final Color bgBottom = new Color(0.133f, 0.153f, 0.196f, 1f);
-    private final Color groundCol = new Color(0.243f, 0.290f, 0.373f, 1f);
-    private final Color groundLine = new Color(0.40f, 0.65f, 0.62f, 0.8f);
-    private final Color playerBody = new Color(0.475f, 0.843f, 0.765f, 1f);
-    private final Color playerBarrel = new Color(0.310f, 0.710f, 0.630f, 1f);
-    private final Color playerGrip = new Color(0.180f, 0.540f, 0.470f, 1f);
-    private final Color playerSlide = new Color(0.720f, 0.930f, 0.880f, 1f);
-    private final Color playerBullet = new Color(1f, 0.85f, 0.54f, 1f);
-    private final Color playerBulletCore = new Color(1f, 0.98f, 0.80f, 1f);
-    private final Color enemyBody = new Color(0.930f, 0.640f, 0.620f, 1f);
-    private final Color enemyBarrel = new Color(0.840f, 0.470f, 0.450f, 1f);
-    private final Color enemyGrip = new Color(0.700f, 0.330f, 0.310f, 1f);
-    private final Color enemySlide = new Color(0.980f, 0.830f, 0.810f, 1f);
-    private final Color enemyBullet = new Color(1f, 0.72f, 0.82f, 1f);
-    private final Color enemyBulletCore = new Color(1f, 0.95f, 0.98f, 1f);
-    private final Color smokeCol = new Color(0.85f, 0.88f, 0.93f, 1f);
-    private final Color playerHit = new Color(0.55f, 0.95f, 0.85f, 1f);
-    private final Color enemyHit = new Color(1f, 0.72f, 0.68f, 1f);
-    private final Color shieldCol = new Color(0.45f, 0.78f, 0.88f, 1f);
-    private final Color shieldGlow = new Color(0.25f, 0.55f, 0.70f, 1f);
-    private final Color healthBg = new Color(0.06f, 0.07f, 0.09f, 0.85f);
-    private final Color healthHi = new Color(0.56f, 0.88f, 0.70f, 1f);
-    private final Color healthLo = new Color(0.92f, 0.53f, 0.50f, 1f);
-    private final Color textCol = new Color(0.92f, 0.93f, 0.96f, 1f);
-    private final Color hintCol = new Color(0.78f, 0.80f, 0.86f, 0.95f);
-
-    private final Matrix4 shooterM = new Matrix4();
-    private final Matrix4 idM = new Matrix4();
-    private final Color lerpTmp = new Color();
-    private final GlyphLayout layout = new GlyphLayout();
+    int roundEnemies = 0;
 
     public void create() {
-        cam = new OrthographicCamera();
-        cam.setToOrtho(false, WORLD_W, WORLD_H);
-        viewport = new FitViewport(WORLD_W, WORLD_H, cam);
-        shape = new ShapeRenderer();
-        batch = new SpriteBatch();
-        font = new BitmapFont();
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        renderer = new WorldRenderer(this);
+        renderer.create();
         log.info("GameWorld created (world {}x{}, ground top {})", WORLD_W, WORLD_H, GROUND_TOP);
         reset();
     }
@@ -107,7 +57,8 @@ public class GameWorld {
     public void reset() {
         log.info("Game reset");
         player = new Shooter(true, WORLD_W * 0.25f, GROUND_TOP + 80f, Shooter.BASE_HP, 0.28f,
-                playerBody, playerBarrel, playerGrip, playerSlide, playerBullet, playerBulletCore);
+                Palette.playerBody, Palette.playerBarrel, Palette.playerGrip, Palette.playerSlide,
+                Palette.playerBullet, Palette.playerBulletCore);
         player.spin = 2.2f;
         round = 1;
         kills = 0;
@@ -131,7 +82,8 @@ public class GameWorld {
         for (int i = 0; i < count; i++) {
             float ex = WORLD_W * (0.22f + 0.56f * i / Math.max(1f, count - 1f));
             Shooter e = new Shooter(false, ex, GROUND_TOP + 80f, hp, 1.15f,
-                    enemyBody, enemyBarrel, enemyGrip, enemySlide, enemyBullet, enemyBulletCore);
+                    Palette.enemyBody, Palette.enemyBarrel, Palette.enemyGrip, Palette.enemySlide,
+                    Palette.enemyBullet, Palette.enemyBulletCore);
             e.spin = 1.6f;
             e.damage = dmg;
             enemies.add(e);
@@ -147,48 +99,7 @@ public class GameWorld {
         float dt = MathUtils.clamp(Gdx.graphics.getDeltaTime(), 0f, 1f / 30f);
         update(dt);
         handleInput();
-        viewport.apply();
-        ScreenUtils.clear(bgBottom.r, bgBottom.g, bgBottom.b, 1f);
-        shape.setProjectionMatrix(cam.combined);
-        // Blending must be (re-)enabled every frame: on some backends the state
-        // set once in create() is lost before the first frame, which would make
-        // every translucent shape (shadows, flashes, the shield) render opaque.
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-
-        shape.begin(ShapeRenderer.ShapeType.Filled);
-        shape.setTransformMatrix(idM.idt());
-        drawBackground();
-        drawGround();
-        if (!player.dead) drawShadow(player);
-        for (Shooter e : enemies) if (!e.dead) drawShadow(e);
-        for (Bullet b : bullets) drawBullet(b);
-        for (MuzzleFlash f : flashes) drawFlash(f);
-        drawShooterFilled(player);
-        for (Shooter e : enemies) drawShooterFilled(e);
-        drawShieldFilled();
-        for (Particle p : particles) drawParticle(p);
-        if (!player.dead) drawHealthBar(player);
-        for (Shooter e : enemies) if (!e.dead) drawHealthBar(e);
-        if (gameOver) {
-            shape.setColor(0f, 0f, 0f, 0.55f);
-            shape.rect(0f, 0f, WORLD_W, WORLD_H);
-        }
-        shape.end();
-
-        shape.begin(ShapeRenderer.ShapeType.Line);
-        shape.setTransformMatrix(idM.idt());
-        if (!gameOver) {
-            drawShooterOutline(player);
-            for (Shooter e : enemies) drawShooterOutline(e);
-            drawShieldRing();
-            if (!player.dead) drawHealthBarBorder(player);
-            for (Shooter e : enemies) if (!e.dead) drawHealthBarBorder(e);
-        }
-        shape.end();
-
-        drawHud();
-        drawRoundBanner();
+        renderer.render();
     }
 
     private void update(float dt) {
@@ -199,7 +110,7 @@ public class GameWorld {
         player.update(dt);
         if (invBefore > 0f && player.invincibleTime <= 0f) {
             // the shield pops out with a spark burst when the grace period ends
-            burst(player.x, player.y, shieldCol, 14, 240f);
+            burst(player.x, player.y, Palette.shieldCol, 14, 240f);
             log.debug("Invincibility shield expired");
         }
         for (Shooter e : enemies) e.update(dt);
@@ -255,7 +166,7 @@ public class GameWorld {
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE) && player.fireCooldown <= 0f) {
             player.shoot(this);
             addFlash(player);
-            burst(muzzleX(player), muzzleY(player), smokeCol, 6, 110f);
+            burst(muzzleX(player), muzzleY(player), Palette.smokeCol, 6, 110f);
         }
     }
 
@@ -278,7 +189,7 @@ public class GameWorld {
                 enemy.angle = dodgeAimAngle(enemy, threat);
                 enemy.shoot(this);
                 addFlash(enemy);
-                burst(muzzleX(enemy), muzzleY(enemy), smokeCol, 6, 110f);
+                burst(muzzleX(enemy), muzzleY(enemy), Palette.smokeCol, 6, 110f);
                 enemy.dodgeCooldown = DODGE_COOLDOWN;
                 return;
             }
@@ -290,7 +201,7 @@ public class GameWorld {
             if (enemy.fireCooldown <= 0f) {
                 enemy.shoot(this);
                 addFlash(enemy);
-                burst(muzzleX(enemy), muzzleY(enemy), smokeCol, 6, 110f);
+                burst(muzzleX(enemy), muzzleY(enemy), Palette.smokeCol, 6, 110f);
                 enemy.fireCooldown = MathUtils.random(0.7f, 1.1f);
             }
             return;
@@ -322,7 +233,7 @@ public class GameWorld {
         if (enemy.fireCooldown <= 0f && Math.abs(diff) < ENEMY_TOLERANCE) {
             enemy.shoot(this);
             addFlash(enemy);
-            burst(muzzleX(enemy), muzzleY(enemy), smokeCol, 6, 110f);
+            burst(muzzleX(enemy), muzzleY(enemy), Palette.smokeCol, 6, 110f);
             if (enemy.burst <= 0) enemy.burst = 3;
             enemy.burst--;
             enemy.fireCooldown = enemy.burst > 0 ? 0.15f : MathUtils.random(0.9f, 1.5f);
@@ -434,13 +345,13 @@ public class GameWorld {
                 b.dead = true;
                 if (player.invincibleTime > 0f) {
                     // round-start shield absorbs the bullet
-                    burst(b.x, b.y, shieldCol, 8, 170f);
+                    burst(b.x, b.y, Palette.shieldCol, 8, 170f);
                     log.debug("Bullet absorbed by invincibility shield");
                 } else {
                     int hpBefore = player.hp;
                     player.takeDamage(b.owner.damage, b.nx, b.ny);
                     log.debug("Player hit for {} damage (hp {} → {})", b.owner.damage, hpBefore, player.hp);
-                    burst(b.x, b.y, playerHit, 10, 190f);
+                    burst(b.x, b.y, Palette.playerHit, 10, 190f);
                 }
             } else {
                 for (Shooter e : enemies) {
@@ -449,7 +360,7 @@ public class GameWorld {
                         b.dead = true;
                         e.takeDamage(b.owner.damage, b.nx, b.ny);
                         if (b.owner.isPlayer) damageDealt += b.owner.damage;
-                        burst(b.x, b.y, enemyHit, 10, 190f);
+                        burst(b.x, b.y, Palette.enemyHit, 10, 190f);
                         if (e.dead) {
                             kills++;
                             log.debug("Enemy #{} killed | kills={}, damageDealt={}", enemies.indexOf(e, true), kills, damageDealt);
@@ -580,7 +491,7 @@ public class GameWorld {
                     a, MathUtils.random(140f, 340f),
                     MathUtils.random(0.10f, 0.22f),
                     MathUtils.random(1.2f, 2.2f),
-                    new Color(1f, 0.62f, 0.25f, 1f)));
+                    Palette.sparkCol));
         }
     }
 
@@ -602,321 +513,11 @@ public class GameWorld {
         }
     }
 
-    // ---------------- drawing ----------------
-
-    private void drawBackground() {
-        int bands = 36;
-        float h = WORLD_H / bands;
-        for (int i = 0; i < bands; i++) {
-            float t = i / (bands - 1f);
-            shape.setColor(lerpCol(bgTop, bgBottom, t));
-            shape.rect(0f, WORLD_H - h * (i + 1), WORLD_W, h);
-        }
-    }
-
-    private void drawGround() {
-        shape.setColor(groundCol);
-        shape.rect(0f, 0f, WORLD_W, GROUND_TOP);
-        shape.setColor(groundLine);
-        shape.rect(0f, GROUND_TOP, WORLD_W, 2f);
-    }
-
-    private void drawShadow(Shooter s) {
-        float rx = s.halfWidth();
-        float ry = s.halfHeight();
-        float above = s.y - ry - GROUND_TOP;
-        float sc = MathUtils.clamp(1f - above / 260f, 0.3f, 1f);
-        float sw = rx * 1.7f * sc;
-        float sh = 8f * sc;
-        shape.setColor(0f, 0f, 0f, 0.16f * sc);
-        shape.ellipse(s.x - sw * 0.5f, GROUND_TOP - 2f, sw, sh);
-    }
-
-    private void drawBullet(Bullet b) {
-        shape.setColor(b.color.r, b.color.g, b.color.b, 0.22f);
-        shape.circle(b.x, b.y, 10f);
-        shape.setColor(b.color);
-        shape.circle(b.x, b.y, 5.5f);
-        shape.setColor(b.core);
-        shape.circle(b.x, b.y, 2.6f);
-    }
-
-    private void drawFlash(MuzzleFlash f) {
-        float p = MathUtils.clamp(f.life / f.maxLife, 0f, 1f);
-        float flick = 0.75f + 0.5f * MathUtils.random();
-        float cos = MathUtils.cos(f.angle);
-        float sin = MathUtils.sin(f.angle);
-        float px = -sin, py = cos;
-
-        float len = 36f * p * flick;
-        float tipX = f.x + cos * len;
-        float tipY = f.y + sin * len;
-
-        // outer flame cone: wide base at the muzzle, tip along the barrel
-        shape.setColor(1f, 0.42f, 0.16f, 0.42f * p);
-        shape.triangle(tipX, tipY,
-                f.x + px * 9f * p, f.y + py * 9f * p,
-                f.x - px * 9f * p, f.y - py * 9f * p);
-        // inner yellow flame
-        shape.setColor(1f, 0.85f, 0.38f, 0.55f * p);
-        shape.triangle(f.x + cos * len * 0.5f, f.y + sin * len * 0.5f,
-                f.x + px * 5f * p, f.y + py * 5f * p,
-                f.x - px * 5f * p, f.y - py * 5f * p);
-        // tinted glow hugging the muzzle
-        shape.setColor(f.tint.r, f.tint.g, f.tint.b, 0.4f * p);
-        shape.circle(f.x, f.y, 8f * p + 4f);
-        // white-hot core
-        shape.setColor(1f, 1f, 0.92f, 0.85f * p);
-        shape.circle(f.x, f.y, 5f * p + 2f);
-    }
-
-    private void drawShooterFilled(Shooter s) {
-        if (s.dead) return;
-        float cos = MathUtils.cos(s.angle);
-        float sin = MathUtils.sin(s.angle);
-        shooterM.setToTranslation(s.x - cos * s.recoilVis * 10f, s.y - sin * s.recoilVis * 10f, 0f)
-                .rotateRad(0f, 0f, 1f, s.angle + s.recoilVis * 0.16f)
-                .scale(1.5f, 1.5f, 1f);
-        shape.setTransformMatrix(shooterM);
-
-        shape.setColor(s.body);
-        roundedRect(-4f, -12f, 50f, 24f, 7f);
-        shape.setColor(s.slide);
-        shape.rect(-2f, 10f, 44f, 2.2f);
-        shape.setColor(s.barrel);
-        roundedRect(40f, -5f, 28f, 10f, 2.5f);
-        shape.setColor(s.grip);
-        shape.rect(64f, -4f, 6f, 8f);
-        roundedRect(2f, -30f, 18f, 20f, 4f);
-        shape.setColor(s.slide);
-        shape.circle(55f, 12f, 2f);
-
-        shape.setTransformMatrix(idM.idt());
-    }
-
-    private void drawShooterOutline(Shooter s) {
-        if (s.dead) return;
-        float cos = MathUtils.cos(s.angle);
-        float sin = MathUtils.sin(s.angle);
-        shooterM.setToTranslation(s.x - cos * s.recoilVis * 10f, s.y - sin * s.recoilVis * 10f, 0f)
-                .rotateRad(0f, 0f, 1f, s.angle + s.recoilVis * 0.16f)
-                .scale(1.5f, 1.5f, 1f);
-        shape.setTransformMatrix(shooterM);
-
-        shape.setColor(0f, 0f, 0f, 0.20f);
-        shape.circle(32f, -2f, 7.5f);
-        shape.setColor(s.slide.r, s.slide.g, s.slide.b, 0.6f);
-        shape.line(0f, 9f, 22f, 9f);
-        shape.line(0f, 7f, 22f, 7f);
-
-        shape.setTransformMatrix(idM.idt());
-    }
-
-    /** Round-start invincibility bubble: a soft translucent dome over the player. */
-    private void drawShieldFilled() {
-        if (player.dead || player.invincibleTime <= 0f) return;
-        float p = MathUtils.clamp(player.invincibleTime / INVINCIBLE_TIME, 0f, 1f);
-        float pulse = 0.5f + 0.5f * MathUtils.sin(time * 26f);
-        float rad = 102f + 18f * pulse;
-        shape.setColor(shieldGlow.r, shieldGlow.g, shieldGlow.b, 0.2f * p);
-        shape.circle(player.x, player.y, rad + 36f);
-        shape.setColor(shieldCol.r, shieldCol.g, shieldCol.b, 0.50f * p);
-        shape.circle(player.x, player.y, rad);
-    }
-
-    /** Pulsing rings that mark the boundary of the invincibility shield. */
-    private void drawShieldRing() {
-        if (player.dead || player.invincibleTime <= 0f) return;
-        float p = MathUtils.clamp(player.invincibleTime / INVINCIBLE_TIME, 0f, 1f);
-        float pulse = 0.5f + 0.5f * MathUtils.sin(time * 26f);
-        float rad = 102f + 18f * pulse;
-        shape.setColor(shieldCol.r, shieldCol.g, shieldCol.b, 0.80f * p);
-        shape.circle(player.x, player.y, rad + 12f);
-        shape.setColor(shieldGlow.r, shieldGlow.g, shieldGlow.b, 0.80f * p);
-        shape.circle(player.x, player.y, rad - 12f);
-    }
-
-    private void drawParticle(Particle p) {
-        float a = MathUtils.clamp(p.life / p.maxLife, 0f, 1f);
-        shape.setColor(p.color.r, p.color.g, p.color.b, a);
-        shape.circle(p.x, p.y, Math.max(0.4f, p.radius * a));
-    }
-
-    private void drawHealthBar(Shooter s) {
-        float frac = MathUtils.clamp((float) s.hp / s.maxHp, 0f, 1f);
-        float bw = 70f, bh = 9f;
-        float bx = s.x - bw * 0.5f;
-        float by = s.y + s.halfHeight() + 12f;
-        shape.setColor(healthBg);
-        roundedRect(bx, by, bw, bh, 4f);
-        if (frac > 0.001f) {
-            shape.setColor(lerpCol(healthLo, healthHi, frac));
-            roundedRect(bx + 2f, by + 2f, (bw - 4f) * frac, bh - 4f, 2.5f);
-        }
-    }
-
-    private void drawHealthBarBorder(Shooter s) {
-        float bw = 70f, bh = 9f;
-        float bx = s.x - bw * 0.5f;
-        float by = s.y + s.halfHeight() + 12f;
-        shape.setColor(textCol.r, textCol.g, textCol.b, 0.5f);
-        shape.rect(bx, by, bw, bh);
-    }
-
-    private void drawHud() {
-        batch.setProjectionMatrix(cam.combined);
-        batch.begin();
-
-        if (gameOver) {
-            font.getData().setScale(3.2f);
-            font.setColor(textCol);
-            String title = "GAME OVER";
-            layout.setText(font, title);
-            font.draw(batch, title, (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.70f);
-
-            font.getData().setScale(1.7f);
-            font.setColor(hintCol);
-            String killsStr = "KILLS: " + kills;
-            String roundStr = "ROUNDS SURVIVED: " + round;
-            String dmgStr = "DAMAGE DEALT: " + damageDealt;
-            layout.setText(font, killsStr);
-            font.draw(batch, killsStr, (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.52f);
-            layout.setText(font, roundStr);
-            font.draw(batch, roundStr, (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.45f);
-            layout.setText(font, dmgStr);
-            font.draw(batch, dmgStr, (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.38f);
-
-            font.getData().setScale(1.6f);
-            font.setColor(hintCol);
-            layout.setText(font, "Press R to restart");
-            font.draw(batch, "Press R to restart", (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.30f);
-        } else {
-            // top-left counters: enemies killed and current round
-            font.getData().setScale(2.5f);
-            font.setColor(hintCol);
-            String roundStr = "ROUND " + round;
-            layout.setText(font, roundStr);
-            font.draw(batch, roundStr, 26f, WORLD_H - 22f);
-
-            font.getData().setScale(1.5f);
-            font.setColor(textCol);
-            String killsStr = "KILLS " + kills;
-            layout.setText(font, killsStr);
-            font.draw(batch, killsStr, 30f, WORLD_H - 60f);
-
-            font.getData().setScale(1.6f);
-            font.setColor(hintCol);
-            String hint = "Hold SPACE to shoot   ·   R to restart";
-            layout.setText(font, hint);
-            font.draw(batch, hint, (WORLD_W - layout.width) * 0.5f, 38f);
-
-            if (player.invincibleTime > 0f) {
-                font.getData().setScale(1.3f);
-                font.setColor(shieldGlow);
-                String shieldStr = "INVINCIBLE";
-                layout.setText(font, shieldStr);
-                font.draw(batch, shieldStr, player.x - layout.width * 0.5f, player.y + player.halfHeight() + 42f);
-            }
-        }
-
-        batch.end();
-    }
-
-    /**
-     * Round-start transition: a soft dark veil over the world with a
-     * low-opacity "ROUND N" banner centered on screen. Purely visual —
-     * the fight (and the player's controls) carry on underneath it.
-     */
-    private void drawRoundBanner() {
-        if (gameOver || roundBannerTime <= 0f) return;
-        // t: elapsed time since the round started (0 → ROUND_BANNER_TIME).
-        // The veil fades in to 50% over the first 0.3s, settles to 20% over
-        // the next 0.7s, then spends the final 2s easing away to fully
-        // transparent. Every downward step is an ease-out curve — opacity
-        // drops fast at first and tapers off slowly, so the handoff back
-        // to the game feels gradual instead of abrupt.
-        float t = ROUND_BANNER_TIME - roundBannerTime;
-        float e; // shared envelope 0..1 that shapes veil, text and accents
-        if (t < 0.3f) {
-            float u = t / 0.3f;
-            e = 1f - (1f - u) * (1f - u); // 0 → 1, banner pops in quickly
-        } else if (t < 1.0f) {
-            float u = (t - 0.3f) / 0.7f;
-            e = 1f - 0.6f * (1f - (1f - u) * (1f - u)); // 1 → 0.4 (50% → 20% veil)
-        } else {
-            float u = (t - 1.0f) / 2.0f;
-            e = 0.4f * (1f - u) * (1f - u); // 0.4 → 0, slow tail to fully transparent
-        }
-        if (e <= 0.001f) return;
-
-        String title = "ROUND " + round;
-        font.getData().setScale(3f);
-        layout.setText(font, title);
-        float titleW = layout.width;
-
-        float cx = WORLD_W * 0.5f;
-        float titleY = WORLD_H * 0.54f;
-        float lineLen = 40f * e;
-        float gap = titleW * 0.5f + 26f;
-        float lineY = titleY - 18f; // vertical middle of the title glyphs
-
-        // black veil peaking at 50% — clearly dimmed, never a blackout — with
-        // two short mint accents growing in from the sides of the title.
-        // Blending must be re-enabled here: drawHud()'s SpriteBatch.end()
-        // disables GL_BLEND, and ShapeRenderer.begin() does not turn it back
-        // on — with blending off, the veil's alpha is ignored and it would
-        // render as a fully opaque blackout instead of a translucent dim.
-        Gdx.gl.glEnable(GL20.GL_BLEND);
-        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-        shape.begin(ShapeRenderer.ShapeType.Filled);
-        shape.setColor(0f, 0f, 0f, 0.5f * e);
-        shape.rect(0f, 0f, WORLD_W, WORLD_H);
-        shape.setColor(playerBody.r, playerBody.g, playerBody.b, 0.35f * e);
-        roundedRect(cx - gap - lineLen, lineY, lineLen, 4f, 2f);
-        roundedRect(cx + gap, lineY, lineLen, 4f, 2f);
-        shape.end();
-
-        // low-opacity, dead-center text: soft off-white title, faint subtitle
-        batch.setProjectionMatrix(cam.combined);
-        batch.begin();
-        font.setColor(textCol.r, textCol.g, textCol.b, 0.6f * e);
-        font.draw(batch, title, cx - layout.width * 0.5f, titleY);
-
-        String sub = roundEnemies == 1 ? "1 ENEMY" : roundEnemies + " ENEMIES";
-        font.getData().setScale(1.5f);
-        layout.setText(font, sub);
-        font.setColor(hintCol.r, hintCol.g, hintCol.b, 0.45f * e);
-        font.draw(batch, sub, cx - layout.width * 0.5f, titleY - 56f);
-        batch.end();
-    }
-
-    private Color lerpCol(Color a, Color b, float t) {
-        lerpTmp.set(
-                a.r + (b.r - a.r) * t,
-                a.g + (b.g - a.g) * t,
-                a.b + (b.b - a.b) * t,
-                a.a + (b.a - a.a) * t);
-        return lerpTmp;
-    }
-
-    /** Rounded rectangle drawn out of rects and circles (Filled mode only). */
-    private void roundedRect(float x, float y, float w, float h, float r) {
-        r = Math.min(r, Math.min(w, h) * 0.5f);
-        shape.rect(x + r, y, w - 2f * r, h);
-        shape.rect(x, y + r, w, h - 2f * r);
-        shape.circle(x + r, y + r, r);
-        shape.circle(x + w - r, y + r, r);
-        shape.circle(x + r, y + h - r, r);
-        shape.circle(x + w - r, y + h - r, r);
-    }
-
     public void resize(int width, int height) {
-        viewport.update(width, height, true);
+        renderer.resize(width, height);
     }
 
     public void dispose() {
-        shape.dispose();
-        batch.dispose();
-        font.dispose();
+        renderer.dispose();
     }
 }
