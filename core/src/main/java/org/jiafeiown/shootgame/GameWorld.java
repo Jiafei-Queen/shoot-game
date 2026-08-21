@@ -34,6 +34,7 @@ public class GameWorld {
     private static final int MAX_ENEMIES = 6;
     private static final float ENEMY_GROWTH = 1.05f;
     private static final float INVINCIBLE_TIME = 3f;
+    private static final float ROUND_BANNER_TIME = 2.5f;
 
     private OrthographicCamera cam;
     private FitViewport viewport;
@@ -52,6 +53,10 @@ public class GameWorld {
     private int damageDealt = 0;
     private boolean gameOver;
     private float time;
+    /** Counts down while the round-start transition banner is on screen. */
+    private float roundBannerTime = 0f;
+    /** Enemy count of the current round, shown under the banner title. */
+    private int roundEnemies = 0;
 
     // soft, muted palette
     private final Color bgTop = new Color(0.176f, 0.208f, 0.267f, 1f);
@@ -133,6 +138,8 @@ public class GameWorld {
         }
         // the player is briefly invincible at the top of every round
         player.invincibleTime = INVINCIBLE_TIME;
+        roundEnemies = count;
+        roundBannerTime = ROUND_BANNER_TIME;
         log.info("Round {} started: {} enemies (hp={}, dmg={})", round, count, hp, dmg);
     }
 
@@ -181,11 +188,13 @@ public class GameWorld {
         shape.end();
 
         drawHud();
+        drawRoundBanner();
     }
 
     private void update(float dt) {
         if (gameOver) return;
         time += dt;
+        if (roundBannerTime > 0f) roundBannerTime = Math.max(0f, roundBannerTime - dt);
         float invBefore = player.invincibleTime;
         player.update(dt);
         if (invBefore > 0f && player.invincibleTime <= 0f) {
@@ -784,6 +793,74 @@ public class GameWorld {
             }
         }
 
+        batch.end();
+    }
+
+    /**
+     * Round-start transition: a soft dark veil over the world with a
+     * low-opacity "ROUND N" banner centered on screen. Purely visual —
+     * the fight (and the player's controls) carry on underneath it.
+     */
+    private void drawRoundBanner() {
+        if (gameOver || roundBannerTime <= 0f) return;
+        // t: elapsed time since the round started (0 → ROUND_BANNER_TIME).
+        // The veil fades in to 50% over the first 0.3s, settles to 20% over
+        // the next 0.7s, then spends the final 2s easing away to fully
+        // transparent. Every downward step is an ease-out curve — opacity
+        // drops fast at first and tapers off slowly, so the handoff back
+        // to the game feels gradual instead of abrupt.
+        float t = ROUND_BANNER_TIME - roundBannerTime;
+        float e; // shared envelope 0..1 that shapes veil, text and accents
+        if (t < 0.3f) {
+            float u = t / 0.3f;
+            e = 1f - (1f - u) * (1f - u); // 0 → 1, banner pops in quickly
+        } else if (t < 1.0f) {
+            float u = (t - 0.3f) / 0.7f;
+            e = 1f - 0.6f * (1f - (1f - u) * (1f - u)); // 1 → 0.4 (50% → 20% veil)
+        } else {
+            float u = (t - 1.0f) / 2.0f;
+            e = 0.4f * (1f - u) * (1f - u); // 0.4 → 0, slow tail to fully transparent
+        }
+        if (e <= 0.001f) return;
+
+        String title = "ROUND " + round;
+        font.getData().setScale(3f);
+        layout.setText(font, title);
+        float titleW = layout.width;
+
+        float cx = WORLD_W * 0.5f;
+        float titleY = WORLD_H * 0.54f;
+        float lineLen = 40f * e;
+        float gap = titleW * 0.5f + 26f;
+        float lineY = titleY - 18f; // vertical middle of the title glyphs
+
+        // black veil peaking at 50% — clearly dimmed, never a blackout — with
+        // two short mint accents growing in from the sides of the title.
+        // Blending must be re-enabled here: drawHud()'s SpriteBatch.end()
+        // disables GL_BLEND, and ShapeRenderer.begin() does not turn it back
+        // on — with blending off, the veil's alpha is ignored and it would
+        // render as a fully opaque blackout instead of a translucent dim.
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shape.begin(ShapeRenderer.ShapeType.Filled);
+        shape.setColor(0f, 0f, 0f, 0.5f * e);
+        shape.rect(0f, 0f, WORLD_W, WORLD_H);
+        shape.setColor(playerBody.r, playerBody.g, playerBody.b, 0.35f * e);
+        roundedRect(cx - gap - lineLen, lineY, lineLen, 4f, 2f);
+        roundedRect(cx + gap, lineY, lineLen, 4f, 2f);
+        shape.end();
+
+        // low-opacity, dead-center text: soft off-white title, faint subtitle
+        batch.setProjectionMatrix(cam.combined);
+        batch.begin();
+        font.setColor(textCol.r, textCol.g, textCol.b, 0.6f * e);
+        font.draw(batch, title, cx - layout.width * 0.5f, titleY);
+
+        String sub = roundEnemies == 1 ? "1 ENEMY" : roundEnemies + " ENEMIES";
+        font.getData().setScale(1.5f);
+        layout.setText(font, sub);
+        font.setColor(hintCol.r, hintCol.g, hintCol.b, 0.45f * e);
+        font.draw(batch, sub, cx - layout.width * 0.5f, titleY - 56f);
         batch.end();
     }
 
