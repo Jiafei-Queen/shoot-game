@@ -44,6 +44,8 @@ public class GameWorld {
 
     private int round = 1;
     private int kills = 0;
+    private int damageDealt = 0;
+    private boolean gameOver;
 
     // soft, muted palette
     private final Color bgTop = new Color(0.176f, 0.208f, 0.267f, 1f);
@@ -94,6 +96,8 @@ public class GameWorld {
         player.spin = 2.2f;
         round = 1;
         kills = 0;
+        damageDealt = 0;
+        gameOver = false;
         bullets.clear();
         particles.clear();
         flashes.clear();
@@ -139,20 +143,27 @@ public class GameWorld {
         for (Particle p : particles) drawParticle(p);
         if (!player.dead) drawHealthBar(player);
         for (Shooter e : enemies) if (!e.dead) drawHealthBar(e);
+        if (gameOver) {
+            shape.setColor(0f, 0f, 0f, 0.55f);
+            shape.rect(0f, 0f, WORLD_W, WORLD_H);
+        }
         shape.end();
 
         shape.begin(ShapeRenderer.ShapeType.Line);
         shape.setTransformMatrix(idM.idt());
-        drawShooterOutline(player);
-        for (Shooter e : enemies) drawShooterOutline(e);
-        if (!player.dead) drawHealthBarBorder(player);
-        for (Shooter e : enemies) if (!e.dead) drawHealthBarBorder(e);
+        if (!gameOver) {
+            drawShooterOutline(player);
+            for (Shooter e : enemies) drawShooterOutline(e);
+            if (!player.dead) drawHealthBarBorder(player);
+            for (Shooter e : enemies) if (!e.dead) drawHealthBarBorder(e);
+        }
         shape.end();
 
         drawHud();
     }
 
     private void update(float dt) {
+        if (gameOver) return;
         player.update(dt);
         for (Shooter e : enemies) e.update(dt);
         updateEnemyAI(dt);
@@ -177,12 +188,12 @@ public class GameWorld {
         checkBulletCollisions();
         resolveShooterCollisions();
 
-        // no settlement screen: a dead player silently restarts the run
+        // player died: freeze the world and show the settlement screen
         if (player.dead) {
-            reset();
+            gameOver = true;
             return;
         }
-        // all enemies of the round cleared: move to the next round
+        // all enemies of the round cleared: heal the player 30% and move on
         boolean allDead = true;
         for (Shooter e : enemies) {
             if (!e.dead) {
@@ -192,13 +203,14 @@ public class GameWorld {
         }
         if (allDead) {
             round++;
+            player.hp = Math.min(player.maxHp, player.hp + Math.round(player.maxHp * 0.30f));
             spawnRound();
         }
     }
 
     private void handleInput() {
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) reset();
-        if (player.dead) return;
+        if (gameOver) return;
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE) && player.fireCooldown <= 0f) {
             player.shoot(this);
             addFlash(player);
@@ -370,6 +382,7 @@ public class GameWorld {
                     if (e.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
                         b.dead = true;
                         e.takeDamage(b.owner.damage, b.nx, b.ny);
+                        if (b.owner.isPlayer) damageDealt += b.owner.damage;
                         burst(b.x, b.y, enemyHit, 10, 190f);
                         if (e.dead) kills++;
                         break;
@@ -652,24 +665,49 @@ public class GameWorld {
         batch.setProjectionMatrix(cam.combined);
         batch.begin();
 
-        // top-left counters: enemies killed and current round
-        font.getData().setScale(1.6f);
-        font.setColor(textCol);
-        String killsStr = "KILLS " + kills;
-        layout.setText(font, killsStr);
-        font.draw(batch, killsStr, 24f, WORLD_H - 20f);
+        if (gameOver) {
+            font.getData().setScale(3.2f);
+            font.setColor(textCol);
+            String title = "GAME OVER";
+            layout.setText(font, title);
+            font.draw(batch, title, (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.70f);
 
-        font.getData().setScale(1.15f);
-        font.setColor(hintCol);
-        String roundStr = "ROUND " + round;
-        layout.setText(font, roundStr);
-        font.draw(batch, roundStr, 26f, WORLD_H - 44f);
+            font.getData().setScale(1.7f);
+            font.setColor(hintCol);
+            String killsStr = "KILLS: " + kills;
+            String roundStr = "ROUNDS SURVIVED: " + round;
+            String dmgStr = "DAMAGE DEALT: " + damageDealt;
+            layout.setText(font, killsStr);
+            font.draw(batch, killsStr, (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.52f);
+            layout.setText(font, roundStr);
+            font.draw(batch, roundStr, (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.45f);
+            layout.setText(font, dmgStr);
+            font.draw(batch, dmgStr, (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.38f);
 
-        font.getData().setScale(1.6f);
-        font.setColor(hintCol);
-        String hint = "Hold SPACE to shoot   ·   R to restart";
-        layout.setText(font, hint);
-        font.draw(batch, hint, (WORLD_W - layout.width) * 0.5f, 38f);
+            font.getData().setScale(1.6f);
+            font.setColor(hintCol);
+            layout.setText(font, "Press R to restart");
+            font.draw(batch, "Press R to restart", (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.30f);
+        } else {
+            // top-left counters: enemies killed and current round
+            font.getData().setScale(1.6f);
+            font.setColor(textCol);
+            String killsStr = "KILLS " + kills;
+            layout.setText(font, killsStr);
+            font.draw(batch, killsStr, 24f, WORLD_H - 20f);
+
+            font.getData().setScale(1.15f);
+            font.setColor(hintCol);
+            String roundStr = "ROUND " + round;
+            layout.setText(font, roundStr);
+            font.draw(batch, roundStr, 26f, WORLD_H - 44f);
+
+            font.getData().setScale(1.6f);
+            font.setColor(hintCol);
+            String hint = "Hold SPACE to shoot   ·   R to restart";
+            layout.setText(font, hint);
+            font.draw(batch, hint, (WORLD_W - layout.width) * 0.5f, 38f);
+        }
 
         batch.end();
     }
