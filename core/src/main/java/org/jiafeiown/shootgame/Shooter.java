@@ -13,6 +13,7 @@ public class Shooter {
     public static final float BULLET_SPEED = 980f;
     public static final float KNOCKBACK = 130f;
     public static final int BULLET_DAMAGE = 14;
+    public static final int BASE_HP = 100;
     public static final float SPIN_STUN = 0.9f;
 
     public final boolean isPlayer;
@@ -26,6 +27,9 @@ public class Shooter {
     public float recoilVis = 0f;
     public float spin = 2.2f;
     public float spinStun = 0f;
+    public int damage;
+    public float dodgeCooldown;
+    public int burst;
 
     public final float halfW = 51f;
     public final float halfH = 21f;
@@ -39,6 +43,7 @@ public class Shooter {
         this.y = y;
         this.hp = this.maxHp = maxHp;
         this.fireInterval = fireInterval;
+        this.damage = BULLET_DAMAGE;
         this.body = body;
         this.barrel = barrel;
         this.grip = grip;

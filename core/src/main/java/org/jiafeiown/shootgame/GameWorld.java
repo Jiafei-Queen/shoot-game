@@ -27,6 +27,8 @@ public class GameWorld {
     private static final float DODGE_COOLDOWN = 0.6f;
     private static final float BULLET_COLLIDE_RADIUS = 12f;
     private static final float BULLET_HIT_RADIUS = 4f;
+    private static final int MAX_ENEMIES = 6;
+    private static final float ENEMY_GROWTH = 1.05f;
 
     private OrthographicCamera cam;
     private FitViewport viewport;
@@ -34,13 +36,14 @@ public class GameWorld {
     private SpriteBatch batch;
     private BitmapFont font;
 
-    private Shooter player, enemy;
+    private Shooter player;
+    private final Array<Shooter> enemies = new Array<>();
     private final Array<Bullet> bullets = new Array<>();
     private final Array<Particle> particles = new Array<>();
     private final Array<MuzzleFlash> flashes = new Array<>();
 
-    private boolean gameOver;
-    private boolean playerWon;
+    private int round = 1;
+    private int kills = 0;
 
     // soft, muted palette
     private final Color bgTop = new Color(0.176f, 0.208f, 0.267f, 1f);
@@ -72,8 +75,6 @@ public class GameWorld {
     private final Matrix4 idM = new Matrix4();
     private final Color lerpTmp = new Color();
     private final GlyphLayout layout = new GlyphLayout();
-    private int enemyBurst = 0;
-    private float dodgeCooldown;
 
     public void create() {
         cam = new OrthographicCamera();
@@ -88,18 +89,33 @@ public class GameWorld {
     }
 
     public void reset() {
-        player = new Shooter(true, WORLD_W * 0.25f, GROUND_TOP + 80f, 100, 0.28f,
+        player = new Shooter(true, WORLD_W * 0.25f, GROUND_TOP + 80f, Shooter.BASE_HP, 0.28f,
                 playerBody, playerBarrel, playerGrip, playerSlide, playerBullet, playerBulletCore);
-        enemy = new Shooter(false, WORLD_W * 0.75f, GROUND_TOP + 80f, 100, 1.15f,
-                enemyBody, enemyBarrel, enemyGrip, enemySlide, enemyBullet, enemyBulletCore);
         player.spin = 2.2f;
-        enemy.spin = 1.6f;
+        round = 1;
+        kills = 0;
         bullets.clear();
         particles.clear();
         flashes.clear();
-        dodgeCooldown = 0f;
-        gameOver = false;
-        playerWon = false;
+        spawnRound();
+    }
+
+    /** Spawns this round's enemies: one more than the previous round (up to
+     *  {@link #MAX_ENEMIES}), each with +5% max hp and bullet damage per round. */
+    private void spawnRound() {
+        enemies.clear();
+        int count = Math.min(round, MAX_ENEMIES);
+        float mult = (float) Math.pow(ENEMY_GROWTH, round - 1);
+        int hp = Math.max(1, Math.round(Shooter.BASE_HP * mult));
+        int dmg = Math.max(1, Math.round(Shooter.BULLET_DAMAGE * mult));
+        for (int i = 0; i < count; i++) {
+            float ex = WORLD_W * (0.22f + 0.56f * i / Math.max(1f, count - 1f));
+            Shooter e = new Shooter(false, ex, GROUND_TOP + 80f, hp, 1.15f,
+                    enemyBody, enemyBarrel, enemyGrip, enemySlide, enemyBullet, enemyBulletCore);
+            e.spin = 1.6f;
+            e.damage = dmg;
+            enemies.add(e);
+        }
     }
 
     public void render() {
@@ -115,29 +131,22 @@ public class GameWorld {
         drawBackground();
         drawGround();
         if (!player.dead) drawShadow(player);
-        if (!enemy.dead) drawShadow(enemy);
+        for (Shooter e : enemies) if (!e.dead) drawShadow(e);
         for (Bullet b : bullets) drawBullet(b);
         for (MuzzleFlash f : flashes) drawFlash(f);
         drawShooterFilled(player);
-        drawShooterFilled(enemy);
+        for (Shooter e : enemies) drawShooterFilled(e);
         for (Particle p : particles) drawParticle(p);
-        if (gameOver) {
-            shape.setColor(0f, 0f, 0f, 0.55f);
-            shape.rect(0f, 0f, WORLD_W, WORLD_H);
-        } else {
-            if (!player.dead) drawHealthBar(player);
-            if (!enemy.dead) drawHealthBar(enemy);
-        }
+        if (!player.dead) drawHealthBar(player);
+        for (Shooter e : enemies) if (!e.dead) drawHealthBar(e);
         shape.end();
 
         shape.begin(ShapeRenderer.ShapeType.Line);
         shape.setTransformMatrix(idM.idt());
-        if (!gameOver) {
-            drawShooterOutline(player);
-            drawShooterOutline(enemy);
-            if (!player.dead) drawHealthBarBorder(player);
-            if (!enemy.dead) drawHealthBarBorder(enemy);
-        }
+        drawShooterOutline(player);
+        for (Shooter e : enemies) drawShooterOutline(e);
+        if (!player.dead) drawHealthBarBorder(player);
+        for (Shooter e : enemies) if (!e.dead) drawHealthBarBorder(e);
         shape.end();
 
         drawHud();
@@ -145,7 +154,7 @@ public class GameWorld {
 
     private void update(float dt) {
         player.update(dt);
-        enemy.update(dt);
+        for (Shooter e : enemies) e.update(dt);
         updateEnemyAI(dt);
 
         for (int i = bullets.size - 1; i >= 0; i--) {
@@ -166,23 +175,31 @@ public class GameWorld {
 
         checkBulletHits();
         checkBulletCollisions();
-        resolveShooterCollision();
+        resolveShooterCollisions();
 
-        if (!gameOver) {
-            if (enemy.dead) {
-                gameOver = true;
-                playerWon = true;
-            } else if (player.dead) {
-                gameOver = true;
-                playerWon = false;
+        // no settlement screen: a dead player silently restarts the run
+        if (player.dead) {
+            reset();
+            return;
+        }
+        // all enemies of the round cleared: move to the next round
+        boolean allDead = true;
+        for (Shooter e : enemies) {
+            if (!e.dead) {
+                allDead = false;
+                break;
             }
+        }
+        if (allDead) {
+            round++;
+            spawnRound();
         }
     }
 
     private void handleInput() {
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) reset();
-        if (gameOver) return;
-        if (!player.dead && Gdx.input.isKeyPressed(Input.Keys.SPACE) && player.fireCooldown <= 0f) {
+        if (player.dead) return;
+        if (Gdx.input.isKeyPressed(Input.Keys.SPACE) && player.fireCooldown <= 0f) {
             player.shoot(this);
             addFlash(player);
             burst(muzzleX(player), muzzleY(player), smokeCol, 6, 110f);
@@ -190,21 +207,26 @@ public class GameWorld {
     }
 
     private void updateEnemyAI(float dt) {
-        if (gameOver || enemy.dead) return;
+        if (player.dead) return;
+        for (Shooter enemy : enemies) {
+            if (!enemy.dead) updateEnemyAI(enemy, dt);
+        }
+    }
 
-        if (dodgeCooldown > 0f) dodgeCooldown -= dt;
+    private void updateEnemyAI(Shooter enemy, float dt) {
+        if (enemy.dodgeCooldown > 0f) enemy.dodgeCooldown -= dt;
 
         // a player bullet is about to hit: fire in a direction whose recoil
         // shoves the enemy off the bullet's path (the shot also heads back
         // toward the player, so the dodge doubles as a counter-attack)
-        if (enemy.fireCooldown <= 0f && dodgeCooldown <= 0f) {
-            Bullet threat = findIncomingThreat();
+        if (enemy.fireCooldown <= 0f && enemy.dodgeCooldown <= 0f) {
+            Bullet threat = findIncomingThreat(enemy);
             if (threat != null) {
-                enemy.angle = dodgeAimAngle(threat);
+                enemy.angle = dodgeAimAngle(enemy, threat);
                 enemy.shoot(this);
                 addFlash(enemy);
                 burst(muzzleX(enemy), muzzleY(enemy), smokeCol, 6, 110f);
-                dodgeCooldown = DODGE_COOLDOWN;
+                enemy.dodgeCooldown = DODGE_COOLDOWN;
                 return;
             }
         }
@@ -248,20 +270,20 @@ public class GameWorld {
             enemy.shoot(this);
             addFlash(enemy);
             burst(muzzleX(enemy), muzzleY(enemy), smokeCol, 6, 110f);
-            if (enemyBurst <= 0) enemyBurst = 3;
-            enemyBurst--;
-            enemy.fireCooldown = enemyBurst > 0 ? 0.15f : MathUtils.random(0.9f, 1.5f);
+            if (enemy.burst <= 0) enemy.burst = 3;
+            enemy.burst--;
+            enemy.fireCooldown = enemy.burst > 0 ? 0.15f : MathUtils.random(0.9f, 1.5f);
         }
     }
 
-    /** Nearest player bullet that will hit the enemy within the dodge horizon, or null. */
-    private Bullet findIncomingThreat() {
+    /** Nearest player bullet that will hit the given enemy within the dodge horizon, or null. */
+    private Bullet findIncomingThreat(Shooter enemy) {
         Bullet best = null;
         float bestT = Float.MAX_VALUE;
         for (int i = 0; i < bullets.size; i++) {
             Bullet b = bullets.get(i);
             if (b.dead || !b.owner.isPlayer) continue;
-            float t = bulletTimeToEnemy(b);
+            float t = bulletTimeToEnemy(b, enemy);
             if (t >= 0f && t < DODGE_HORIZON && t < bestT) {
                 best = b;
                 bestT = t;
@@ -271,7 +293,7 @@ public class GameWorld {
     }
 
     /** Time until a bullet enters the enemy's hitbox, or -1 if it never does. */
-    private float bulletTimeToEnemy(Bullet b) {
+    private float bulletTimeToEnemy(Bullet b, Shooter enemy) {
         float cos = MathUtils.cos(enemy.angle);
         float sin = MathUtils.sin(enemy.angle);
         float dx = b.x - enemy.x, dy = b.y - enemy.y;
@@ -317,7 +339,7 @@ public class GameWorld {
      * Direction to fire so that the recoil shoves the enemy perpendicular to
      * the incoming bullet's path, away from it.
      */
-    private float dodgeAimAngle(Bullet b) {
+    private float dodgeAimAngle(Shooter enemy, Bullet b) {
         float pushX = -b.vy, pushY = b.vx;
         float len = (float) Math.sqrt(pushX * pushX + pushY * pushY);
         if (len < 0.0001f) return 0f;
@@ -332,20 +354,26 @@ public class GameWorld {
     }
 
     private void checkBulletHits() {
-        Shooter[] targets = {player, enemy};
         for (int i = bullets.size - 1; i >= 0; i--) {
             Bullet b = bullets.get(i);
             if (b.dead) {
                 bullets.removeIndex(i);
                 continue;
             }
-            for (Shooter s : targets) {
-                if (s.dead) continue;
-                if (s.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
-                    b.dead = true;
-                    s.takeDamage(Shooter.BULLET_DAMAGE, b.nx, b.ny);
-                    burst(b.x, b.y, s.isPlayer ? playerHit : enemyHit, 10, 190f);
-                    break;
+            if (!player.dead && player.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
+                b.dead = true;
+                player.takeDamage(b.owner.damage, b.nx, b.ny);
+                burst(b.x, b.y, playerHit, 10, 190f);
+            } else {
+                for (Shooter e : enemies) {
+                    if (e.dead) continue;
+                    if (e.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
+                        b.dead = true;
+                        e.takeDamage(b.owner.damage, b.nx, b.ny);
+                        burst(b.x, b.y, enemyHit, 10, 190f);
+                        if (e.dead) kills++;
+                        break;
+                    }
                 }
             }
             if (b.dead) bullets.removeIndex(i);
@@ -421,31 +449,34 @@ public class GameWorld {
         return cx * cx + cy * cy;
     }
 
-    private void resolveShooterCollision() {
-        if (player.dead || enemy.dead) return;
-        float dx = player.x - enemy.x;
-        float dy = player.y - enemy.y;
-        float ox = (player.halfWidth() + enemy.halfWidth()) - Math.abs(dx);
-        float oy = (player.halfHeight() + enemy.halfHeight()) - Math.abs(dy);
-        if (ox > 0f && oy > 0f) {
-            if (ox < oy) {
-                float dir = dx < 0f ? -1f : 1f;
-                player.x += dir * ox * 0.5f;
-                enemy.x -= dir * ox * 0.5f;
-                player.vx = 0f;
-                enemy.vx = 0f;
-            } else {
-                float dir = dy < 0f ? -1f : 1f;
-                player.y += dir * oy * 0.5f;
-                enemy.y -= dir * oy * 0.5f;
-                player.vy = 0f;
-                enemy.vy = 0f;
+    private void resolveShooterCollisions() {
+        if (player.dead) return;
+        for (Shooter enemy : enemies) {
+            if (enemy.dead) continue;
+            float dx = player.x - enemy.x;
+            float dy = player.y - enemy.y;
+            float ox = (player.halfWidth() + enemy.halfWidth()) - Math.abs(dx);
+            float oy = (player.halfHeight() + enemy.halfHeight()) - Math.abs(dy);
+            if (ox > 0f && oy > 0f) {
+                if (ox < oy) {
+                    float dir = dx < 0f ? -1f : 1f;
+                    player.x += dir * ox * 0.5f;
+                    enemy.x -= dir * ox * 0.5f;
+                    player.vx = 0f;
+                    enemy.vx = 0f;
+                } else {
+                    float dir = dy < 0f ? -1f : 1f;
+                    player.y += dir * oy * 0.5f;
+                    enemy.y -= dir * oy * 0.5f;
+                    player.vy = 0f;
+                    enemy.vy = 0f;
+                }
             }
         }
     }
 
     public void spawnBullet(Shooter owner, float x, float y, float angle) {
-        if (gameOver) return;
+        if (player.dead) return;
         bullets.add(new Bullet(owner, x, y, angle));
     }
 
@@ -620,24 +651,26 @@ public class GameWorld {
     private void drawHud() {
         batch.setProjectionMatrix(cam.combined);
         batch.begin();
-        if (gameOver) {
-            String msg = playerWon ? "PLAYER WINS" : "ENEMY WINS";
-            font.getData().setScale(4f);
-            font.setColor(textCol);
-            layout.setText(font, msg);
-            font.draw(batch, msg, (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.60f);
 
-            font.getData().setScale(1.6f);
-            font.setColor(hintCol);
-            layout.setText(font, "Press R to restart");
-            font.draw(batch, "Press R to restart", (WORLD_W - layout.width) * 0.5f, WORLD_H * 0.55f);
-        } else {
-            font.getData().setScale(1.6f);
-            font.setColor(hintCol);
-            String hint = "Hold SPACE to shoot   ·   R to restart";
-            layout.setText(font, hint);
-            font.draw(batch, hint, (WORLD_W - layout.width) * 0.5f, 38f);
-        }
+        // top-left counters: enemies killed and current round
+        font.getData().setScale(1.6f);
+        font.setColor(textCol);
+        String killsStr = "KILLS " + kills;
+        layout.setText(font, killsStr);
+        font.draw(batch, killsStr, 24f, WORLD_H - 20f);
+
+        font.getData().setScale(1.15f);
+        font.setColor(hintCol);
+        String roundStr = "ROUND " + round;
+        layout.setText(font, roundStr);
+        font.draw(batch, roundStr, 26f, WORLD_H - 44f);
+
+        font.getData().setScale(1.6f);
+        font.setColor(hintCol);
+        String hint = "Hold SPACE to shoot   ·   R to restart";
+        layout.setText(font, hint);
+        font.draw(batch, hint, (WORLD_W - layout.width) * 0.5f, 38f);
+
         batch.end();
     }
 
