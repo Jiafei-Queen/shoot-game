@@ -27,6 +27,8 @@ public class GameWorld {
     private WorldRenderer renderer;
     private final EnemyAI enemyAI = new EnemyAI(this);
     private final CollisionSystem collision = new CollisionSystem(this);
+    /** Round progression and match statistics; read by the renderer and collision system. */
+    final RoundManager rounds = new RoundManager(this);
 
     Shooter player;
     final Array<Shooter> enemies = new Array<>();
@@ -34,15 +36,7 @@ public class GameWorld {
     final Array<Particle> particles = new Array<>();
     final Array<MuzzleFlash> flashes = new Array<>();
 
-    int round = 1;
-    int kills = 0;
-    int damageDealt = 0;
-    boolean gameOver;
     float time;
-    /** Counts down while the round-start transition banner is on screen. */
-    float roundBannerTime = 0f;
-    /** Enemy count of the current round, shown under the banner title. */
-    int roundEnemies = 0;
 
     public void create() {
         renderer = new WorldRenderer(this);
@@ -57,39 +51,11 @@ public class GameWorld {
                 Palette.playerBody, Palette.playerBarrel, Palette.playerGrip, Palette.playerSlide,
                 Palette.playerBullet, Palette.playerBulletCore);
         player.spin = 2.2f;
-        round = 1;
-        kills = 0;
-        damageDealt = 0;
-        gameOver = false;
         time = 0f;
         bullets.clear();
         particles.clear();
         flashes.clear();
-        spawnRound();
-    }
-
-    /** Spawns this round's enemies: one more than the previous round (up to
-     *  {@link #MAX_ENEMIES}), each with +5% max hp and bullet damage per round. */
-    private void spawnRound() {
-        enemies.clear();
-        int count = Math.min(round, MAX_ENEMIES);
-        float mult = (float) Math.pow(ENEMY_GROWTH, round - 1);
-        int hp = Math.max(1, Math.round(Shooter.BASE_HP * mult));
-        int dmg = Math.max(1, Math.round(Shooter.BULLET_DAMAGE * mult));
-        for (int i = 0; i < count; i++) {
-            float ex = WORLD_W * (0.22f + 0.56f * i / Math.max(1f, count - 1f));
-            Shooter e = new Shooter(false, ex, GROUND_TOP + 80f, hp, 1.15f,
-                    Palette.enemyBody, Palette.enemyBarrel, Palette.enemyGrip, Palette.enemySlide,
-                    Palette.enemyBullet, Palette.enemyBulletCore);
-            e.spin = 1.6f;
-            e.damage = dmg;
-            enemies.add(e);
-        }
-        // the player is briefly invincible at the top of every round
-        player.invincibleTime = INVINCIBLE_TIME;
-        roundEnemies = count;
-        roundBannerTime = ROUND_BANNER_TIME;
-        log.info("Round {} started: {} enemies (hp={}, dmg={})", round, count, hp, dmg);
+        rounds.reset();
     }
 
     public void render() {
@@ -100,9 +66,9 @@ public class GameWorld {
     }
 
     private void update(float dt) {
-        if (gameOver) return;
+        if (rounds.isGameOver()) return;
         time += dt;
-        if (roundBannerTime > 0f) roundBannerTime = Math.max(0f, roundBannerTime - dt);
+        rounds.updateBanner(dt);
         float invBefore = player.invincibleTime;
         player.update(dt);
         if (invBefore > 0f && player.invincibleTime <= 0f) {
@@ -130,34 +96,12 @@ public class GameWorld {
         }
 
         collision.update();
-
-        // player died: freeze the world and show the settlement screen
-        if (player.dead) {
-            log.info("Game over: player defeated in round {} | kills={}, damageDealt={}", round, kills, damageDealt);
-            gameOver = true;
-            return;
-        }
-        // all enemies of the round cleared: heal the player 30% and move on
-        boolean allDead = true;
-        for (Shooter e : enemies) {
-            if (!e.dead) {
-                allDead = false;
-                break;
-            }
-        }
-        if (allDead) {
-            int healed = Math.round(player.maxHp * 0.30f);
-            round++;
-            player.hp = Math.min(player.maxHp, player.hp + healed);
-            log.info("Round {} cleared | healed +{} HP ({} → {}) | starting round {}",
-                    round - 1, healed, player.hp - healed, player.hp, round);
-            spawnRound();
-        }
+        rounds.update();
     }
 
     private void handleInput() {
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) reset();
-        if (gameOver) return;
+        if (rounds.isGameOver()) return;
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE) && player.fireCooldown <= 0f) {
             fire(player);
         }

@@ -75,7 +75,7 @@ public class WorldRenderer {
         for (Particle p : world.particles) drawParticle(p);
         if (!player.dead) drawHealthBar(player);
         for (Shooter e : world.enemies) if (!e.dead) drawHealthBar(e);
-        if (world.gameOver) {
+        if (world.rounds.isGameOver()) {
             shape.setColor(0f, 0f, 0f, 0.55f);
             shape.rect(0f, 0f, GameWorld.WORLD_W, GameWorld.WORLD_H);
         }
@@ -83,7 +83,7 @@ public class WorldRenderer {
 
         shape.begin(ShapeRenderer.ShapeType.Line);
         shape.setTransformMatrix(idM.idt());
-        if (!world.gameOver) {
+        if (!world.rounds.isGameOver()) {
             drawShooterOutline(player);
             for (Shooter e : world.enemies) drawShooterOutline(e);
             drawShieldRing();
@@ -263,7 +263,7 @@ public class WorldRenderer {
         batch.setProjectionMatrix(cam.combined);
         batch.begin();
 
-        if (world.gameOver) {
+        if (world.rounds.isGameOver()) {
             font.getData().setScale(3.2f);
             font.setColor(Palette.textCol);
             String title = "GAME OVER";
@@ -272,9 +272,9 @@ public class WorldRenderer {
 
             font.getData().setScale(1.7f);
             font.setColor(Palette.hintCol);
-            String killsStr = "KILLS: " + world.kills;
-            String roundStr = "ROUNDS SURVIVED: " + world.round;
-            String dmgStr = "DAMAGE DEALT: " + world.damageDealt;
+            String killsStr = "KILLS: " + world.rounds.kills;
+            String roundStr = "ROUNDS SURVIVED: " + world.rounds.round;
+            String dmgStr = "DAMAGE DEALT: " + world.rounds.damageDealt;
             layout.setText(font, killsStr);
             font.draw(batch, killsStr, (GameWorld.WORLD_W - layout.width) * 0.5f, GameWorld.WORLD_H * 0.52f);
             layout.setText(font, roundStr);
@@ -290,13 +290,13 @@ public class WorldRenderer {
             // top-left counters: enemies killed and current round
             font.getData().setScale(2.5f);
             font.setColor(Palette.hintCol);
-            String roundStr = "ROUND " + world.round;
+            String roundStr = "ROUND " + world.rounds.round;
             layout.setText(font, roundStr);
             font.draw(batch, roundStr, 26f, GameWorld.WORLD_H - 22f);
 
             font.getData().setScale(1.5f);
             font.setColor(Palette.textCol);
-            String killsStr = "KILLS " + world.kills;
+            String killsStr = "KILLS " + world.rounds.kills;
             layout.setText(font, killsStr);
             font.draw(batch, killsStr, 30f, GameWorld.WORLD_H - 60f);
 
@@ -325,14 +325,14 @@ public class WorldRenderer {
      * the fight (and the player's controls) carry on underneath it.
      */
     private void drawRoundBanner() {
-        if (world.gameOver || world.roundBannerTime <= 0f) return;
+        if (world.rounds.isGameOver() || world.rounds.roundBannerTime <= 0f) return;
         // t: elapsed time since the round started (0 → ROUND_BANNER_TIME).
         // The veil fades in to 50% over the first 0.3s, settles to 20% over
         // the next 0.7s, then spends the final 2s easing away to fully
         // transparent. Every downward step is an ease-out curve — opacity
         // drops fast at first and tapers off slowly, so the handoff back
         // to the game feels gradual instead of abrupt.
-        float t = GameWorld.ROUND_BANNER_TIME - world.roundBannerTime;
+        float t = GameWorld.ROUND_BANNER_TIME - world.rounds.roundBannerTime;
         float e; // shared envelope 0..1 that shapes veil, text and accents
         if (t < 0.3f) {
             float u = t / 0.3f;
@@ -346,7 +346,7 @@ public class WorldRenderer {
         }
         if (e <= 0.001f) return;
 
-        String title = "ROUND " + world.round;
+        String title = "ROUND " + world.rounds.round;
         font.getData().setScale(3f);
         layout.setText(font, title);
         float titleW = layout.width;
@@ -379,7 +379,7 @@ public class WorldRenderer {
         font.setColor(Palette.textCol.r, Palette.textCol.g, Palette.textCol.b, 0.6f * e);
         font.draw(batch, title, cx - layout.width * 0.5f, titleY);
 
-        String sub = world.roundEnemies == 1 ? "1 ENEMY" : world.roundEnemies + " ENEMIES";
+        String sub = world.rounds.roundEnemies == 1 ? "1 ENEMY" : world.rounds.roundEnemies + " ENEMIES";
         font.getData().setScale(1.5f);
         layout.setText(font, sub);
         font.setColor(Palette.hintCol.r, Palette.hintCol.g, Palette.hintCol.b, 0.45f * e);
