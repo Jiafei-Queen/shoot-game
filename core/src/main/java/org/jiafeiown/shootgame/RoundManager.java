@@ -90,8 +90,8 @@ public class RoundManager {
         int hp = Math.max(1, Math.round(Shooter.BASE_HP * mult));
         int dmg = Math.max(1, Math.round(Shooter.BULLET_DAMAGE * mult));
         for (int i = 0; i < count; i++) {
-            float ex = GameWorld.WORLD_W * (0.22f + 0.56f * i / Math.max(1f, count - 1f));
-            Shooter e = new Shooter(false, ex, GameWorld.GROUND_TOP + 80f, hp, 1.15f,
+            float ex = WorldConfig.WORLD_W * (0.22f + 0.56f * i / Math.max(1f, count - 1f));
+            Shooter e = new Shooter(false, ex, WorldConfig.GROUND_TOP + 80f, hp, 1.15f,
                     Palette.enemyBody, Palette.enemyBarrel, Palette.enemyGrip, Palette.enemySlide,
                     Palette.enemyBullet, Palette.enemyBulletCore);
             e.spin = 1.6f;

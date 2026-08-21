@@ -46,13 +46,13 @@ public class CollisionSystem {
                 b.dead = true;
                 if (player.invincibleTime > 0f) {
                     // round-start shield absorbs the bullet
-                    world.burst(b.x, b.y, Palette.shieldCol, 8, 170f);
+                    world.fx.burst(b.x, b.y, Palette.shieldCol, 8, 170f);
                     log.debug("Bullet absorbed by invincibility shield");
                 } else {
                     int hpBefore = player.hp;
                     player.takeDamage(b.owner.damage, b.nx, b.ny);
                     log.debug("Player hit for {} damage (hp {} → {})", b.owner.damage, hpBefore, player.hp);
-                    world.burst(b.x, b.y, Palette.playerHit, 10, 190f);
+                    world.fx.burst(b.x, b.y, Palette.playerHit, 10, 190f);
                 }
             } else {
                 for (Shooter e : world.enemies) {
@@ -61,7 +61,7 @@ public class CollisionSystem {
                         b.dead = true;
                         e.takeDamage(b.owner.damage, b.nx, b.ny);
                         if (b.owner.isPlayer) world.rounds.damageDealt += b.owner.damage;
-                        world.burst(b.x, b.y, Palette.enemyHit, 10, 190f);
+                        world.fx.burst(b.x, b.y, Palette.enemyHit, 10, 190f);
                         if (e.dead) {
                             world.rounds.kills++;
                             log.debug("Enemy #{} killed | kills={}, damageDealt={}",
@@ -94,8 +94,8 @@ public class CollisionSystem {
                     b.dead = true;
                     float mx = (a.x + b.x) * 0.5f;
                     float my = (a.y + b.y) * 0.5f;
-                    world.burst(mx, my, a.color, 8, 240f);
-                    world.burst(mx, my, b.color, 8, 240f);
+                    world.fx.burst(mx, my, a.color, 8, 240f);
+                    world.fx.burst(mx, my, b.color, 8, 240f);
                     break;
                 }
             }

@@ -66,8 +66,8 @@ public class EnemyAI {
         float px = world.player.x + world.player.vx * flight;
         float py = world.player.y + world.player.vy * flight
                 - 0.5f * Shooter.GRAVITY * flight * flight;
-        px = MathUtils.clamp(px, 20f, GameWorld.WORLD_W - 20f);
-        py = MathUtils.clamp(py, GameWorld.GROUND_TOP + 18f, GameWorld.WORLD_H - 18f);
+        px = MathUtils.clamp(px, 20f, WorldConfig.WORLD_W - 20f);
+        py = MathUtils.clamp(py, WorldConfig.GROUND_TOP + 18f, WorldConfig.WORLD_H - 18f);
         float desired = MathUtils.atan2(py - enemy.y, px - enemy.x);
 
         // drift back toward the player when too far away

@@ -40,8 +40,8 @@ public class WorldRenderer {
 
     public void create() {
         cam = new OrthographicCamera();
-        cam.setToOrtho(false, GameWorld.WORLD_W, GameWorld.WORLD_H);
-        viewport = new FitViewport(GameWorld.WORLD_W, GameWorld.WORLD_H, cam);
+        cam.setToOrtho(false, WorldConfig.WORLD_W, WorldConfig.WORLD_H);
+        viewport = new FitViewport(WorldConfig.WORLD_W, WorldConfig.WORLD_H, cam);
         shape = new ShapeRenderer();
         batch = new SpriteBatch();
         font = new BitmapFont();
@@ -68,16 +68,16 @@ public class WorldRenderer {
         if (!player.dead) drawShadow(player);
         for (Shooter e : world.enemies) if (!e.dead) drawShadow(e);
         for (Bullet b : world.bullets) drawBullet(b);
-        for (MuzzleFlash f : world.flashes) drawFlash(f);
+        for (MuzzleFlash f : world.fx.flashes) drawFlash(f);
         drawShooterFilled(player);
         for (Shooter e : world.enemies) drawShooterFilled(e);
         drawShieldFilled();
-        for (Particle p : world.particles) drawParticle(p);
+        for (Particle p : world.fx.particles) drawParticle(p);
         if (!player.dead) drawHealthBar(player);
         for (Shooter e : world.enemies) if (!e.dead) drawHealthBar(e);
         if (world.rounds.isGameOver()) {
             shape.setColor(0f, 0f, 0f, 0.55f);
-            shape.rect(0f, 0f, GameWorld.WORLD_W, GameWorld.WORLD_H);
+            shape.rect(0f, 0f, WorldConfig.WORLD_W, WorldConfig.WORLD_H);
         }
         shape.end();
 
@@ -100,30 +100,30 @@ public class WorldRenderer {
 
     private void drawBackground() {
         int bands = 36;
-        float h = GameWorld.WORLD_H / bands;
+        float h = WorldConfig.WORLD_H / bands;
         for (int i = 0; i < bands; i++) {
             float t = i / (bands - 1f);
             shape.setColor(lerpCol(Palette.bgTop, Palette.bgBottom, t));
-            shape.rect(0f, GameWorld.WORLD_H - h * (i + 1), GameWorld.WORLD_W, h);
+            shape.rect(0f, WorldConfig.WORLD_H - h * (i + 1), WorldConfig.WORLD_W, h);
         }
     }
 
     private void drawGround() {
         shape.setColor(Palette.groundCol);
-        shape.rect(0f, 0f, GameWorld.WORLD_W, GameWorld.GROUND_TOP);
+        shape.rect(0f, 0f, WorldConfig.WORLD_W, WorldConfig.GROUND_TOP);
         shape.setColor(Palette.groundLine);
-        shape.rect(0f, GameWorld.GROUND_TOP, GameWorld.WORLD_W, 2f);
+        shape.rect(0f, WorldConfig.GROUND_TOP, WorldConfig.WORLD_W, 2f);
     }
 
     private void drawShadow(Shooter s) {
         float rx = s.halfWidth();
         float ry = s.halfHeight();
-        float above = s.y - ry - GameWorld.GROUND_TOP;
+        float above = s.y - ry - WorldConfig.GROUND_TOP;
         float sc = MathUtils.clamp(1f - above / 260f, 0.3f, 1f);
         float sw = rx * 1.7f * sc;
         float sh = 8f * sc;
         shape.setColor(0f, 0f, 0f, 0.16f * sc);
-        shape.ellipse(s.x - sw * 0.5f, GameWorld.GROUND_TOP - 2f, sw, sh);
+        shape.ellipse(s.x - sw * 0.5f, WorldConfig.GROUND_TOP - 2f, sw, sh);
     }
 
     private void drawBullet(Bullet b) {
@@ -268,7 +268,7 @@ public class WorldRenderer {
             font.setColor(Palette.textCol);
             String title = "GAME OVER";
             layout.setText(font, title);
-            font.draw(batch, title, (GameWorld.WORLD_W - layout.width) * 0.5f, GameWorld.WORLD_H * 0.70f);
+            font.draw(batch, title, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.70f);
 
             font.getData().setScale(1.7f);
             font.setColor(Palette.hintCol);
@@ -276,35 +276,35 @@ public class WorldRenderer {
             String roundStr = "ROUNDS SURVIVED: " + world.rounds.round;
             String dmgStr = "DAMAGE DEALT: " + world.rounds.damageDealt;
             layout.setText(font, killsStr);
-            font.draw(batch, killsStr, (GameWorld.WORLD_W - layout.width) * 0.5f, GameWorld.WORLD_H * 0.52f);
+            font.draw(batch, killsStr, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.52f);
             layout.setText(font, roundStr);
-            font.draw(batch, roundStr, (GameWorld.WORLD_W - layout.width) * 0.5f, GameWorld.WORLD_H * 0.45f);
+            font.draw(batch, roundStr, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.45f);
             layout.setText(font, dmgStr);
-            font.draw(batch, dmgStr, (GameWorld.WORLD_W - layout.width) * 0.5f, GameWorld.WORLD_H * 0.38f);
+            font.draw(batch, dmgStr, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.38f);
 
             font.getData().setScale(1.6f);
             font.setColor(Palette.hintCol);
             layout.setText(font, "Press R to restart");
-            font.draw(batch, "Press R to restart", (GameWorld.WORLD_W - layout.width) * 0.5f, GameWorld.WORLD_H * 0.30f);
+            font.draw(batch, "Press R to restart", (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.30f);
         } else {
             // top-left counters: enemies killed and current round
             font.getData().setScale(2.5f);
             font.setColor(Palette.hintCol);
             String roundStr = "ROUND " + world.rounds.round;
             layout.setText(font, roundStr);
-            font.draw(batch, roundStr, 26f, GameWorld.WORLD_H - 22f);
+            font.draw(batch, roundStr, 26f, WorldConfig.WORLD_H - 22f);
 
             font.getData().setScale(1.5f);
             font.setColor(Palette.textCol);
             String killsStr = "KILLS " + world.rounds.kills;
             layout.setText(font, killsStr);
-            font.draw(batch, killsStr, 30f, GameWorld.WORLD_H - 60f);
+            font.draw(batch, killsStr, 30f, WorldConfig.WORLD_H - 60f);
 
             font.getData().setScale(1.6f);
             font.setColor(Palette.hintCol);
             String hint = "Hold SPACE to shoot   ·   R to restart";
             layout.setText(font, hint);
-            font.draw(batch, hint, (GameWorld.WORLD_W - layout.width) * 0.5f, 38f);
+            font.draw(batch, hint, (WorldConfig.WORLD_W - layout.width) * 0.5f, 38f);
 
             Shooter player = world.player;
             if (player.invincibleTime > 0f) {
@@ -351,8 +351,8 @@ public class WorldRenderer {
         layout.setText(font, title);
         float titleW = layout.width;
 
-        float cx = GameWorld.WORLD_W * 0.5f;
-        float titleY = GameWorld.WORLD_H * 0.54f;
+        float cx = WorldConfig.WORLD_W * 0.5f;
+        float titleY = WorldConfig.WORLD_H * 0.54f;
         float lineLen = 40f * e;
         float gap = titleW * 0.5f + 26f;
         float lineY = titleY - 18f; // vertical middle of the title glyphs
@@ -367,7 +367,7 @@ public class WorldRenderer {
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         shape.begin(ShapeRenderer.ShapeType.Filled);
         shape.setColor(0f, 0f, 0f, 0.5f * e);
-        shape.rect(0f, 0f, GameWorld.WORLD_W, GameWorld.WORLD_H);
+        shape.rect(0f, 0f, WorldConfig.WORLD_W, WorldConfig.WORLD_H);
         shape.setColor(Palette.playerBody.r, Palette.playerBody.g, Palette.playerBody.b, 0.35f * e);
         roundedRect(cx - gap - lineLen, lineY, lineLen, 4f, 2f);
         roundedRect(cx + gap, lineY, lineLen, 4f, 2f);

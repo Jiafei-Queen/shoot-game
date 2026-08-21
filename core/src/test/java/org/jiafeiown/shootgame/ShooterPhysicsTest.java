@@ -36,24 +36,24 @@ class ShooterPhysicsTest {
 
     @Test
     void groundClampsAndZeroesFall() {
-        Shooter s = shooter(400f, GameWorld.GROUND_TOP + HALF_H + 1f, 0f, -100f);
+        Shooter s = shooter(400f, WorldConfig.GROUND_TOP + HALF_H + 1f, 0f, -100f);
         s.update(DT);
-        assertEquals(GameWorld.GROUND_TOP + HALF_H, s.y, EPS);
+        assertEquals(WorldConfig.GROUND_TOP + HALF_H, s.y, EPS);
         assertEquals(0f, s.vy, EPS);
         assertTrue(s.grounded);
     }
 
     @Test
     void ceilingClampsAndZeroesRise() {
-        Shooter s = shooter(400f, GameWorld.WORLD_H - HALF_H - 1f, 0f, 100f);
+        Shooter s = shooter(400f, WorldConfig.WORLD_H - HALF_H - 1f, 0f, 100f);
         s.update(DT);
-        assertEquals(GameWorld.WORLD_H - HALF_H, s.y, EPS);
+        assertEquals(WorldConfig.WORLD_H - HALF_H, s.y, EPS);
         assertEquals(0f, s.vy, EPS);
     }
 
     @Test
     void leftWallClampsAndZeroesHorizontalSpeed() {
-        Shooter s = shooter(HALF_W - 1f, GameWorld.GROUND_TOP + HALF_H, -100f, 0f);
+        Shooter s = shooter(HALF_W - 1f, WorldConfig.GROUND_TOP + HALF_H, -100f, 0f);
         s.update(DT);
         assertEquals(HALF_W, s.x, EPS);
         assertEquals(0f, s.vx, EPS);
@@ -61,7 +61,7 @@ class ShooterPhysicsTest {
 
     @Test
     void groundDragAppliesWhenGrounded() {
-        Shooter s = shooter(400f, GameWorld.GROUND_TOP + HALF_H, 100f, 0f);
+        Shooter s = shooter(400f, WorldConfig.GROUND_TOP + HALF_H, 100f, 0f);
         s.update(DT);
         assertEquals(100f * (1f - 2.6f * DT), s.vx, EPS);
     }
@@ -80,7 +80,7 @@ class ShooterPhysicsTest {
         air.update(DT);
         assertEquals(2.2f * DT, air.angle, EPS);
 
-        Shooter ground = shooter(400f, GameWorld.GROUND_TOP + HALF_H, 0f, 0f);
+        Shooter ground = shooter(400f, WorldConfig.GROUND_TOP + HALF_H, 0f, 0f);
         ground.spin = 2.2f;
         ground.update(DT);
         assertEquals(0f, ground.angle, EPS);

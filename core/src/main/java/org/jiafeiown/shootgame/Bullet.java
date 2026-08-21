@@ -33,8 +33,8 @@ public class Bullet {
         y += vy * dt;
         life -= dt;
         if (life <= 0f) dead = true;
-        if (y < GameWorld.GROUND_TOP + 2f || y > GameWorld.WORLD_H
-                || x < -24f || x > GameWorld.WORLD_W + 24f) {
+        if (y < WorldConfig.GROUND_TOP + 2f || y > WorldConfig.WORLD_H
+                || x < -24f || x > WorldConfig.WORLD_W + 24f) {
             dead = true;
         }
     }

@@ -72,15 +72,15 @@ public class Shooter {
         y += vy * dt;
 
         float ry = halfHeight();
-        if (y - ry < GameWorld.GROUND_TOP) {
-            y = GameWorld.GROUND_TOP + ry;
+        if (y - ry < WorldConfig.GROUND_TOP) {
+            y = WorldConfig.GROUND_TOP + ry;
             if (vy < 0f) vy = 0f;
             grounded = true;
         } else {
             grounded = false;
         }
-        if (y + ry > GameWorld.WORLD_H) {
-            y = GameWorld.WORLD_H - ry;
+        if (y + ry > WorldConfig.WORLD_H) {
+            y = WorldConfig.WORLD_H - ry;
             if (vy > 0f) vy = 0f;
         }
 
@@ -89,8 +89,8 @@ public class Shooter {
             x = rx;
             if (vx < 0f) vx = 0f;
         }
-        if (x + rx > GameWorld.WORLD_W) {
-            x = GameWorld.WORLD_W - rx;
+        if (x + rx > WorldConfig.WORLD_W) {
+            x = WorldConfig.WORLD_W - rx;
             if (vx > 0f) vx = 0f;
         }
 
