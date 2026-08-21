@@ -347,26 +347,35 @@ public class GameWorld {
 
     /** Time until a bullet enters the enemy's hitbox, or -1 if it never does. */
     private float bulletTimeToEnemy(Bullet b, Shooter enemy) {
+        return bulletTimeToEnemy(b.x, b.y, b.vx, b.vy, enemy, BULLET_HIT_RADIUS);
+    }
+
+    /**
+     * Static core of {@link #bulletTimeToEnemy(Bullet, Shooter)} so the
+     * ray-vs-hitbox math is unit-testable without a live GameWorld.
+     */
+    static float bulletTimeToEnemy(float bx, float by, float bvx, float bvy,
+                                   Shooter enemy, float hitRadius) {
         float cos = MathUtils.cos(enemy.angle);
         float sin = MathUtils.sin(enemy.angle);
-        float dx = b.x - enemy.x, dy = b.y - enemy.y;
+        float dx = bx - enemy.x, dy = by - enemy.y;
         float lx = cos * dx + sin * dy;
         float ly = -sin * dx + cos * dy;
-        float lvx = cos * b.vx + sin * b.vy;
-        float lvy = -sin * b.vx + cos * b.vy;
+        float lvx = cos * bvx + sin * bvy;
+        float lvy = -sin * bvx + cos * bvy;
         float best = -1f;
         for (float[] hb : Shooter.HITBOXES) {
             float t = hitTimeAlong(lx, ly, lvx, lvy,
-                    hb[0] - BULLET_HIT_RADIUS, hb[1] - BULLET_HIT_RADIUS,
-                    hb[2] + BULLET_HIT_RADIUS, hb[3] + BULLET_HIT_RADIUS);
+                    hb[0] - hitRadius, hb[1] - hitRadius,
+                    hb[2] + hitRadius, hb[3] + hitRadius);
             if (t >= 0f && (best < 0f || t < best)) best = t;
         }
         return best;
     }
 
     /** Time until a ray (px,py)+(vx,vy)*t enters the box, or -1 if it never does. */
-    private static float hitTimeAlong(float px, float py, float vx, float vy,
-                                      float minX, float minY, float maxX, float maxY) {
+    static float hitTimeAlong(float px, float py, float vx, float vy,
+                              float minX, float minY, float maxX, float maxY) {
         float tmin = -Float.MAX_VALUE, tmax = Float.MAX_VALUE;
         if (Math.abs(vx) < 0.0001f) {
             if (px < minX || px > maxX) return -1f;
@@ -393,13 +402,21 @@ public class GameWorld {
      * the incoming bullet's path, away from it.
      */
     private float dodgeAimAngle(Shooter enemy, Bullet b) {
-        float pushX = -b.vy, pushY = b.vx;
+        return dodgeAimAngle(enemy.x, enemy.y, b.x, b.y, b.vx, b.vy);
+    }
+
+    /**
+     * Static core of {@link #dodgeAimAngle(Shooter, Bullet)} so the aim math
+     * is unit-testable without a live GameWorld.
+     */
+    static float dodgeAimAngle(float ex, float ey, float bx, float by, float bvx, float bvy) {
+        float pushX = -bvy, pushY = bvx;
         float len = (float) Math.sqrt(pushX * pushX + pushY * pushY);
         if (len < 0.0001f) return 0f;
         pushX /= len;
         pushY /= len;
-        float ex = enemy.x - b.x, ey = enemy.y - b.y;
-        if (pushX * ex + pushY * ey < 0f) {
+        float rx = ex - bx, ry = ey - by;
+        if (pushX * rx + pushY * ry < 0f) {
             pushX = -pushX;
             pushY = -pushY;
         }
@@ -473,8 +490,8 @@ public class GameWorld {
     }
 
     /** Squared distance between the two line segments of the bullets' travel this frame. */
-    private static float segSegDistSq(float p1x, float p1y, float p2x, float p2y,
-                                      float q1x, float q1y, float q2x, float q2y) {
+    static float segSegDistSq(float p1x, float p1y, float p2x, float p2y,
+                              float q1x, float q1y, float q2x, float q2y) {
         float d1x = p2x - p1x, d1y = p2y - p1y;
         float d2x = q2x - q1x, d2y = q2y - q1y;
         float rx = p1x - q1x, ry = p1y - q1y;
@@ -518,24 +535,33 @@ public class GameWorld {
         if (player.dead) return;
         for (Shooter enemy : enemies) {
             if (enemy.dead) continue;
-            float dx = player.x - enemy.x;
-            float dy = player.y - enemy.y;
-            float ox = (player.halfWidth() + enemy.halfWidth()) - Math.abs(dx);
-            float oy = (player.halfHeight() + enemy.halfHeight()) - Math.abs(dy);
-            if (ox > 0f && oy > 0f) {
-                if (ox < oy) {
-                    float dir = dx < 0f ? -1f : 1f;
-                    player.x += dir * ox * 0.5f;
-                    enemy.x -= dir * ox * 0.5f;
-                    player.vx = 0f;
-                    enemy.vx = 0f;
-                } else {
-                    float dir = dy < 0f ? -1f : 1f;
-                    player.y += dir * oy * 0.5f;
-                    enemy.y -= dir * oy * 0.5f;
-                    player.vy = 0f;
-                    enemy.vy = 0f;
-                }
+            resolveOverlap(player, enemy);
+        }
+    }
+
+    /**
+     * Pushes two overlapping shooters apart along the axis of least
+     * penetration and zeroes their velocity on that axis. Static so it is
+     * unit-testable without a live GameWorld.
+     */
+    static void resolveOverlap(Shooter a, Shooter b) {
+        float dx = a.x - b.x;
+        float dy = a.y - b.y;
+        float ox = (a.halfWidth() + b.halfWidth()) - Math.abs(dx);
+        float oy = (a.halfHeight() + b.halfHeight()) - Math.abs(dy);
+        if (ox > 0f && oy > 0f) {
+            if (ox < oy) {
+                float dir = dx < 0f ? -1f : 1f;
+                a.x += dir * ox * 0.5f;
+                b.x -= dir * ox * 0.5f;
+                a.vx = 0f;
+                b.vx = 0f;
+            } else {
+                float dir = dy < 0f ? -1f : 1f;
+                a.y += dir * oy * 0.5f;
+                b.y -= dir * oy * 0.5f;
+                a.vy = 0f;
+                b.vy = 0f;
             }
         }
     }

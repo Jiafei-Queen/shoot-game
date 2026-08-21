@@ -7,8 +7,23 @@ dependencies {
   // implementation (log4j-core) is provided by the desktop launcher.
   api "org.apache.logging.log4j:log4j-api:$log4j2Version"
 
+  // Unit tests: pure JVM math/physics, no Gdx backend needed.
+  // log4j-core on the test runtime makes Shooter's debug logs work and
+  // silences log4j-api's "no logging implementation" status error.
+  testImplementation platform("org.junit:junit-bom:$junitVersion")
+  testImplementation "org.junit.jupiter:junit-jupiter"
+  testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+  testRuntimeOnly "org.apache.logging.log4j:log4j-core:$log4j2Version"
+
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-annotations:$graalHelperVersion"
+  }
+}
+
+test {
+  useJUnitPlatform()
+  testLogging {
+    events "passed", "skipped", "failed"
   }
 }
 
