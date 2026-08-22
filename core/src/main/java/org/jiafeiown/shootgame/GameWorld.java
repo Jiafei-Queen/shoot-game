@@ -20,7 +20,7 @@ public class GameWorld {
     /** Pause menu layout, shared between the click hit-testing here and the
      *  drawing in {@link WorldRenderer}. Labels stay ASCII because the default
      *  BitmapFont has no glyphs for other scripts. */
-    static final String[] PAUSE_OPTIONS = {"CONTINUE", "END GAME", "RESTART ROUND"};
+    static final String[] PAUSE_OPTIONS = {"CONTINUE", "END GAME", "RESTART ROUND", "MAIN MENU"};
     static final float PAUSE_OPTION_SCALE = 2f;
     static final float PAUSE_OPTION_SPACING = 60f;
     /** Y of the first (top) option's baseline; the rest sit below it. */
@@ -34,6 +34,15 @@ public class GameWorld {
     static final float PAUSE_BTN_MARGIN = 20f;
     static final float PAUSE_BTN_X = WorldConfig.WORLD_W - PAUSE_BTN_SIZE - PAUSE_BTN_MARGIN;
     static final float PAUSE_BTN_Y = WorldConfig.WORLD_H - PAUSE_BTN_SIZE - PAUSE_BTN_MARGIN;
+
+    /** Start screen layout, shared between the click hit-testing here and the
+     *  drawing in {@link WorldRenderer}. The title sits in the upper-middle
+     *  and the START button in the lower-middle of the screen. */
+    static final float START_TITLE_Y = WorldConfig.WORLD_H * 0.62f;
+    static final float START_BTN_W = 300f;
+    static final float START_BTN_H = 76f;
+    static final float START_BTN_CX = WorldConfig.WORLD_W * 0.5f;
+    static final float START_BTN_CY = WorldConfig.WORLD_H * 0.35f;
 
     private WorldRenderer renderer;
     private final EnemyAI enemyAI = new EnemyAI(this);
@@ -60,19 +69,43 @@ public class GameWorld {
         audio.create();
         log.info("GameWorld created (world {}x{}, ground top {})",
                 WorldConfig.WORLD_W, WorldConfig.WORLD_H, WorldConfig.GROUND_TOP);
-        reset();
+        toMenu();
     }
 
-    public void reset() {
-        log.info("Game reset");
+    /** Builds a fresh player standing on the ground, ready for a new match. */
+    private void spawnPlayer() {
         player = new Shooter(true, WorldConfig.WORLD_W * 0.25f, WorldConfig.GROUND_TOP + 80f, Shooter.BASE_HP, 0.14f,
                 Palette.playerBody, Palette.playerBarrel, Palette.playerGrip, Palette.playerSlide,
                 Palette.playerBullet, Palette.playerBulletCore);
         player.spin = 2.2f;
+    }
+
+    public void reset() {
+        log.info("Game reset");
+        spawnPlayer();
         time = 0f;
         bullets.clear();
         fx.clear();
         rounds.reset();
+    }
+
+    /** Opens the start screen: the menu is drawn over the empty field, with a
+     *  fresh player standing on it. Nothing moves while the menu is up. */
+    void toMenu() {
+        log.info("Showing start screen");
+        spawnPlayer();
+        time = 0f;
+        bullets.clear();
+        fx.clear();
+        enemies.clear();
+        rounds.toMenu();
+    }
+
+    /** Launches a new match from the start screen: fresh round 1 with every
+     *  stat reset. */
+    void startGame() {
+        log.info("Starting new game from start screen");
+        reset();
     }
 
     public void render() {
@@ -87,6 +120,7 @@ public class GameWorld {
 
     private void update(float dt) {
         if (rounds.isGameOver()) return;
+        if (rounds.isMainMenu()) return;
         if (rounds.isPaused()) {
             if (rounds.isResuming()) {
                 // menu is fading out: keep the world frozen until it's gone,
@@ -127,6 +161,11 @@ public class GameWorld {
     }
 
     private void handleInput() {
+        // the start screen has its own input handling
+        if (rounds.isMainMenu()) {
+            handleMenuInput();
+            return;
+        }
         // while paused the only inputs that matter are the pause menu's
         if (rounds.isPaused()) {
             handlePauseInput();
@@ -176,6 +215,21 @@ public class GameWorld {
         return renderer.pauseButtonAt(p[0], p[1]);
     }
 
+    /** Start screen interactions: ENTER/SPACE (desktop) or a tap on the START
+     *  button starts the game; on touch devices any tap starts it, since the
+     *  menu has no other targets. */
+    private void handleMenuInput() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+            startGame();
+            return;
+        }
+        if (!Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && !Gdx.input.justTouched()) return;
+        float[] p = renderer.unproject(Gdx.input.getX(), Gdx.input.getY());
+        if (isTouchDevice() || renderer.startButtonAt(p[0], p[1])) {
+            startGame();
+        }
+    }
+
     /** Pause menu interactions: ESC resumes (or cancels a resume in progress),
      *  clicking an option acts on it. */
     private void handlePauseInput() {
@@ -201,6 +255,10 @@ public class GameWorld {
                 break;
             case 2: // RESTART ROUND
                 rounds.restartRound();
+                break;
+            case 3: // MAIN MENU
+                toMenu();
+                log.info("Returning to start screen");
                 break;
             default:
                 break;

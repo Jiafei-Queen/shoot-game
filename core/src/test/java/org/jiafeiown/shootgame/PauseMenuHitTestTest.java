@@ -49,7 +49,7 @@ public class PauseMenuHitTestTest {
     }
 
     /**
-     * The three pause options sit at world baselines 640, 580 and 520 (see
+     * The four pause options sit at world baselines 640, 580, 520 and 460 (see
      * {@link GameWorld#PAUSE_MENU_START_Y} and the 60px spacing). A click on
      * each option's on-screen text must map back to exactly that world Y —
      * a double Y flip would push them all upward by 60 world units, so only
@@ -60,7 +60,8 @@ public class PauseMenuHitTestTest {
         float[] baselines = {
                 GameWorld.PAUSE_MENU_START_Y,
                 GameWorld.PAUSE_MENU_START_Y - GameWorld.PAUSE_OPTION_SPACING,
-                GameWorld.PAUSE_MENU_START_Y - 2 * GameWorld.PAUSE_OPTION_SPACING
+                GameWorld.PAUSE_MENU_START_Y - 2 * GameWorld.PAUSE_OPTION_SPACING,
+                GameWorld.PAUSE_MENU_START_Y - 3 * GameWorld.PAUSE_OPTION_SPACING
         };
         for (int i = 0; i < baselines.length; i++) {
             float[] v = unproject(WIN_W / 2f, screenY(baselines[i]));

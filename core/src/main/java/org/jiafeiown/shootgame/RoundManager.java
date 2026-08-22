@@ -73,6 +73,21 @@ public class RoundManager {
         return state == GameState.GAME_OVER;
     }
 
+    boolean isMainMenu() {
+        return state == GameState.MAIN_MENU;
+    }
+
+    /** Returns to the start screen from the pause menu, abandoning the match
+     *  in progress. The menu's field is cleared by {@link GameWorld#toMenu()};
+     *  starting a new game from the menu resets every stat. */
+    void toMenu() {
+        state = GameState.MAIN_MENU;
+        pauseTransition = 0f;
+        resuming = false;
+        resumeProgress = 0f;
+        world.audio.stopPauseLoop();
+    }
+
     boolean isPaused() {
         return state == GameState.PAUSED;
     }

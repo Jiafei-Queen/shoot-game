@@ -97,6 +97,7 @@ public class WorldRenderer {
         drawPauseButton();
         drawRoundBanner();
         if (world.rounds.isPaused()) drawPauseMenu();
+        if (world.rounds.isMainMenu()) drawStartMenu();
     }
 
     // ---------------- drawing ----------------
@@ -264,8 +265,9 @@ public class WorldRenderer {
 
     private void drawHud() {
         // stays up during the slow-mo wind-down; only steps aside once the
-        // pause screen is fully opaque and the world has stopped
-        if (world.rounds.isFullyPaused()) return;
+        // pause screen is fully opaque and the world has stopped (or the
+        // start screen is showing)
+        if (world.rounds.isMainMenu() || world.rounds.isFullyPaused()) return;
         batch.setProjectionMatrix(cam.combined);
         batch.begin();
 
@@ -345,7 +347,7 @@ public class WorldRenderer {
      * the fight (and the player's controls) carry on underneath it.
      */
     private void drawRoundBanner() {
-        if (world.rounds.isFullyPaused()) return;
+        if (world.rounds.isMainMenu() || world.rounds.isFullyPaused()) return;
         if (world.rounds.isGameOver() || world.rounds.roundBannerTime <= 0f) return;
         // t: elapsed time since the round started (0 → ROUND_BANNER_TIME).
         // The veil fades in to 50% over the first 0.3s, settles to 20% over
@@ -463,7 +465,7 @@ public class WorldRenderer {
      *  Drawn while the HUD is up, so it stays visible through the slow-mo
      *  wind-down and steps aside on the game-over and fully-paused screens. */
     private void drawPauseButton() {
-        if (world.rounds.isGameOver() || world.rounds.isFullyPaused()) return;
+        if (world.rounds.isMainMenu() || world.rounds.isGameOver() || world.rounds.isFullyPaused()) return;
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         shape.begin(ShapeRenderer.ShapeType.Filled);
@@ -477,6 +479,76 @@ public class WorldRenderer {
         shape.rect(cx - barW - 3f, cy - barH * 0.5f, barW, barH);
         shape.rect(cx + 3f, cy - barH * 0.5f, barW, barH);
         shape.end();
+    }
+
+    /** Start screen: a dim veil over the empty field, the game title in the
+     *  upper-middle and a START GAME button in the lower-middle. The button is
+     *  picked out in the player's mint while hovered, like the pause options. */
+    private void drawStartMenu() {
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shape.setTransformMatrix(idM.idt());
+        shape.begin(ShapeRenderer.ShapeType.Filled);
+        shape.setColor(0f, 0f, 0f, 0.45f);
+        shape.rect(0f, 0f, WorldConfig.WORLD_W, WorldConfig.WORLD_H);
+
+        float[] mp = unproject(Gdx.input.getX(), Gdx.input.getY());
+        boolean hover = startButtonAt(mp[0], mp[1]);
+        float bx = GameWorld.START_BTN_CX - GameWorld.START_BTN_W * 0.5f;
+        float by = GameWorld.START_BTN_CY - GameWorld.START_BTN_H * 0.5f;
+        // drop shadow under the button, then the button itself
+        shape.setColor(0f, 0f, 0f, 0.35f);
+        roundedRect(bx, by - 5f, GameWorld.START_BTN_W, GameWorld.START_BTN_H, 16f);
+        if (hover) {
+            shape.setColor(Palette.playerBody.r, Palette.playerBody.g, Palette.playerBody.b, 0.95f);
+        } else {
+            shape.setColor(0.20f, 0.25f, 0.31f, 0.95f);
+        }
+        roundedRect(bx, by, GameWorld.START_BTN_W, GameWorld.START_BTN_H, 16f);
+        shape.end();
+
+        batch.setProjectionMatrix(cam.combined);
+        batch.begin();
+
+        // title, upper-middle
+        font.getData().setScale(4.5f);
+        font.setColor(Palette.playerBody);
+        String title = "ShootGame";
+        layout.setText(font, title);
+        font.draw(batch, title, (WorldConfig.WORLD_W - layout.width) * 0.5f, GameWorld.START_TITLE_Y);
+
+        // small subtitle under the title
+        font.getData().setScale(1.5f);
+        font.setColor(Palette.hintCol);
+        String sub = "PISTOL DUEL SURVIVAL";
+        layout.setText(font, sub);
+        font.draw(batch, sub, (WorldConfig.WORLD_W - layout.width) * 0.5f, GameWorld.START_TITLE_Y - 52f);
+
+        // START GAME button label, lower-middle
+        font.getData().setScale(2.4f);
+        font.setColor(hover ? Palette.playerSlide : Palette.textCol);
+        String label = "START GAME";
+        layout.setText(font, label);
+        font.draw(batch, label,
+                (WorldConfig.WORLD_W - layout.width) * 0.5f,
+                GameWorld.START_BTN_CY + layout.height * 0.5f);
+
+        // input hint below the button
+        font.getData().setScale(1.3f);
+        font.setColor(Palette.hintCol);
+        String hint = GameWorld.isTouchDevice() ? "TAP TO START" : "ENTER / CLICK TO START";
+        layout.setText(font, hint);
+        font.draw(batch, hint, (WorldConfig.WORLD_W - layout.width) * 0.5f, GameWorld.START_BTN_CY - 64f);
+
+        batch.end();
+    }
+
+    /** True when the world-space point (x, y) lies on the START GAME button. */
+    boolean startButtonAt(float x, float y) {
+        float hw = GameWorld.START_BTN_W * 0.5f;
+        float hh = GameWorld.START_BTN_H * 0.5f;
+        return x >= GameWorld.START_BTN_CX - hw && x <= GameWorld.START_BTN_CX + hw
+                && y >= GameWorld.START_BTN_CY - hh && y <= GameWorld.START_BTN_CY + hh;
     }
 
     /**

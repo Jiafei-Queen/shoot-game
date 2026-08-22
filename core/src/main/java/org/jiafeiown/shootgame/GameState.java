@@ -7,6 +7,7 @@ package org.jiafeiown.shootgame;
  * {@link RoundManager#roundBannerTime}.
  */
 enum GameState {
+    MAIN_MENU,
     PLAYING,
     PAUSED,
     GAME_OVER
