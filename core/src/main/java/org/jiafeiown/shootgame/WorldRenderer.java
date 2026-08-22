@@ -282,7 +282,17 @@ public class WorldRenderer {
             layout.setText(font, dmgStr);
             font.draw(batch, dmgStr, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.38f);
 
+            // TOTAL TIME estadísticas
+            int minutes = (int) (world.time / 60f);
+            int seconds = (int) world.time % 60;
+            String timeStr = String.format("%02d:%02d", minutes, seconds);
+            font.getData().setScale(1.7f);
+            layout.setText(font, timeStr);
+            font.setColor(Palette.hintCol);
+            font.draw(batch, timeStr, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.31f);
+
             font.getData().setScale(1.6f);
+
             font.setColor(Palette.hintCol);
             layout.setText(font, "Press R to restart");
             font.draw(batch, "Press R to restart", (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.30f);
