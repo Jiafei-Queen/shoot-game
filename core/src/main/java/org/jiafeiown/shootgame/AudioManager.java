@@ -28,7 +28,12 @@ public class AudioManager {
     private Sound enemyShoot;
     private Sound gameOver;
     private Sound hitMetal;
-    private Sound nextRound;
+    /** Round-start jingle. Loaded as a {@link Music} (an HTML5 media element on
+     *  the web build) on purpose: browsers suspend the Web Audio context until
+     *  audio is played inside a user gesture, and only a Music — not a buffer
+     *  Sound — reliably engages the audio pipeline on the gesture that starts
+     *  the game (see {@link GameWorld#startGame()}). */
+    private Music nextRound;
     private Music pauseLoop;
     private Sound playerShoot;
 
@@ -43,7 +48,7 @@ public class AudioManager {
         enemyShoot = loadSound("enemy-shoot.mp3");
         gameOver = loadSound("gameover.mp3");
         hitMetal = loadSound("hit-metal.mp3");
-        nextRound = loadSound("next-round.mp3");
+        nextRound = Gdx.audio.newMusic(Gdx.files.internal(AUDIO_DIR + "next-round.mp3"));
         pauseLoop = Gdx.audio.newMusic(Gdx.files.internal(AUDIO_DIR + "pause.mp3"));
         pauseLoop.setLooping(true);
         playerShoot = loadSound("player-shoot.mp3");
@@ -79,9 +84,10 @@ public class AudioManager {
         play(gameOver);
     }
 
-    /** A round after the first one started. */
+    /** A round started (every round after the first, plus round 1 when a new
+     *  match is launched from the start screen). */
     void playNextRound() {
-        play(nextRound);
+        if (nextRound != null) nextRound.play();
     }
 
     /** Starts the looping pause-menu music, fading it in from its current volume. */
@@ -131,7 +137,8 @@ public class AudioManager {
         if (nextRound != null) nextRound.dispose();
         if (pauseLoop != null) pauseLoop.dispose();
         if (playerShoot != null) playerShoot.dispose();
-        enemyDie = enemyShoot = gameOver = hitMetal = nextRound = playerShoot = null;
+        enemyDie = enemyShoot = gameOver = hitMetal = playerShoot = null;
+        nextRound = null;
         pauseLoop = null;
         log.info("Audio disposed");
     }

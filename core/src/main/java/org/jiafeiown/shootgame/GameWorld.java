@@ -102,10 +102,16 @@ public class GameWorld {
     }
 
     /** Launches a new match from the start screen: fresh round 1 with every
-     *  stat reset. */
+     *  stat reset. Round 1 opens with the round-start jingle, played here —
+     *  inside the START click's user gesture. That matters on the web build:
+     *  browsers keep the Web Audio context suspended until audio is played in
+     *  a gesture, and playing the jingle as a {@link Music} (an HTML5 media
+     *  element) on this exact click is what engages the audio pipeline, so
+     *  every sound afterwards is audible without an extra interaction. */
     void startGame() {
         log.info("Starting new game from start screen");
         reset();
+        audio.playNextRound();
     }
 
     public void render() {
