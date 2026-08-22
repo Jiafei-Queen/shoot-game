@@ -26,7 +26,7 @@ public class EnemyAI {
     public void update(float dt) {
         if (world.player.dead) return;
         for (Shooter enemy : world.enemies) {
-            if (!enemy.dead) updateEnemy(enemy, dt);
+            if (!enemy.dead && !enemy.isSpawning()) updateEnemy(enemy, dt);
         }
     }
 

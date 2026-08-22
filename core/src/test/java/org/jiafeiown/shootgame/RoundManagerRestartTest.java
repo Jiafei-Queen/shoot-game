@@ -69,9 +69,11 @@ public class RoundManagerRestartTest {
         assertEquals(startVy, world.player.vy, 0.001f);
         assertEquals(startHp, world.player.hp);
 
-        // field emptied: no bullets, no particles/muzzle flashes
+        // field emptied: no bullets in flight; the only particles left are
+        // the respawned enemies' materialize effect (16 converging motes +
+        // 10 puff per freshly spawned enemy)
         assertEquals(0, world.bullets.size);
-        assertEquals(0, world.fx.particles.size);
+        assertEquals(26 * world.enemies.size, world.fx.particles.size);
 
         // enemies respawned fresh at their opening spots with full hp
         assertEquals(enemyCount, world.enemies.size);

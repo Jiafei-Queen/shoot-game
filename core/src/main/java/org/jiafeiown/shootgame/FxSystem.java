@@ -71,4 +71,42 @@ public class FxSystem {
                     MathUtils.random(1.5f, 3.2f), c));
         }
     }
+
+    /** Spawn-in effect for a materializing shooter at (x, y): a ring of
+     *  motes converging inward from around the spawn point plus a soft
+     *  outward puff, tinted with the shooter's own colors. */
+    void spawnEffects(Shooter s) {
+        // converging motes: placed on a circle around the spawn point and
+        // given just enough speed to reach the center as they expire, so the
+        // effect reads as the body being pulled together out of thin air
+        for (int i = 0; i < 16; i++) {
+            float a = MathUtils.random() * MathUtils.PI2;
+            float d = MathUtils.random(70f, 160f);
+            float life = MathUtils.random(0.55f, 0.95f);
+            Particle p = new Particle(s.x + MathUtils.cos(a) * d, s.y + MathUtils.sin(a) * d,
+                    a + MathUtils.PI, d / life * MathUtils.random(0.85f, 1.1f),
+                    life, MathUtils.random(1.6f, 3.0f), Palette.enemyBody);
+            particles.add(p);
+        }
+        // soft outward puff marking the moment of appearance
+        burst(s.x, s.y, Palette.enemyBarrel, 10, 150f);
+    }
+
+    /** Death dissolve effect for a defeated enemy: a violent radial burst
+     *  in the enemy's colors, plus slower embers that drift upward out of
+     *  the wreck while the body fades away. */
+    void deathEffects(Shooter s) {
+        burst(s.x, s.y, Palette.enemyHit, 16, 280f);
+        burst(s.x, s.y, Palette.enemyBullet, 10, 190f);
+        for (int i = 0; i < 8; i++) {
+            particles.add(new Particle(
+                    s.x + MathUtils.random(-30f, 30f),
+                    s.y + MathUtils.random(-14f, 14f),
+                    MathUtils.PI2 * 0.25f + MathUtils.random(-0.5f, 0.5f), // upward cone
+                    MathUtils.random(50f, 150f),
+                    MathUtils.random(0.35f, 0.7f),
+                    MathUtils.random(1.2f, 2.4f),
+                    Palette.sparkCol));
+        }
+    }
 }

@@ -272,10 +272,12 @@ public class RoundManager {
             world.audio.playGameOver();
             return;
         }
-        // all enemies of the round cleared: heal the player 30% and move on
+        // all enemies of the round cleared: heal the player 30% and move on.
+        // A defeated enemy lingers for its dissolve-out, so the round only
+        // advances once every death animation has finished playing.
         boolean allDead = true;
         for (Shooter e : world.enemies) {
-            if (!e.dead) {
+            if (!e.dead || e.isDying()) {
                 allDead = false;
                 break;
             }
@@ -319,6 +321,9 @@ public class RoundManager {
                     Palette.enemyBullet, Palette.enemyBulletCore);
             e.spin = 1.6f;
             e.damage = dmg;
+            // each enemy materializes over 1s: frozen, untouchable and fading in
+            e.spawnTimer = Shooter.SPAWN_TIME;
+            world.fx.spawnEffects(e);
             world.enemies.add(e);
         }
         // the player is briefly invincible at the top of every round

@@ -61,13 +61,15 @@ public class CollisionSystem {
                 }
             } else {
                 for (Shooter e : world.enemies) {
-                    if (e.dead || e == b.owner) continue;
+                    // still materializing: bullets fly straight through
+                    if (e.dead || e.isSpawning() || e == b.owner) continue;
                     if (e.bulletSegmentHits(b.prevX, b.prevY, b.x, b.y, BULLET_HIT_RADIUS)) {
                         b.dead = true;
                         world.audio.playHitMetal();
                         e.takeDamage(b.owner.damage, b.nx, b.ny);
                         world.fx.burst(b.x, b.y, Palette.enemyHit, 10, 190f);
                         if (e.dead) {
+                            world.fx.deathEffects(e);
                             world.audio.playEnemyDie();
                             if (b.owner.isPlayer) {
                                 world.rounds.damageDealt += b.owner.damage;

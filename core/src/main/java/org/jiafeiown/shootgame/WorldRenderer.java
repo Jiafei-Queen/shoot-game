@@ -66,12 +66,18 @@ public class WorldRenderer {
         shape.setTransformMatrix(idM.idt());
         drawBackground();
         drawGround();
-        if (!player.dead) drawShadow(player);
-        for (Shooter e : world.enemies) if (!e.dead) drawShadow(e);
+        if (!player.dead || player.isDying()) drawShadow(player);
+        for (Shooter e : world.enemies) if (!e.dead || e.isDying()) drawShadow(e);
         for (Bullet b : world.bullets) drawBullet(b);
         for (MuzzleFlash f : world.fx.flashes) drawFlash(f);
         drawShooterFilled(player);
-        for (Shooter e : world.enemies) drawShooterFilled(e);
+        for (Shooter e : world.enemies) {
+            if (!e.dead || e.isDying()) {
+                drawSpawnGlow(e);
+                drawDeathFx(e);
+                drawShooterFilled(e);
+            }
+        }
         drawShieldFilled();
         for (Particle p : world.fx.particles) drawParticle(p);
         if (!player.dead) drawHealthBar(player);
@@ -120,14 +126,33 @@ public class WorldRenderer {
     }
 
     private void drawShadow(Shooter s) {
+        float a = s.spawnAlpha();
+        if (s.dead) a *= s.deathAlpha(); // corpse shadows dissolve with the body
         float rx = s.halfWidth();
         float ry = s.halfHeight();
         float above = s.y - ry - WorldConfig.GROUND_TOP;
         float sc = MathUtils.clamp(1f - above / 260f, 0.3f, 1f);
         float sw = rx * 1.7f * sc;
         float sh = 8f * sc;
-        shape.setColor(0f, 0f, 0f, 0.16f * sc);
+        shape.setColor(0f, 0f, 0f, 0.16f * sc * a);
         shape.ellipse(s.x - sw * 0.5f, WorldConfig.GROUND_TOP - 2f, sw, sh);
+    }
+
+    /** Materialize glow around a shooter that is still fading in: a soft
+     *  tinted disc whose radius contracts onto the body as the spawn
+     *  progresses. Drawn in the main filled pass, where blending is already
+     *  re-enabled every frame (see docs/libgdx-alpha-blending.md). */
+    private void drawSpawnGlow(Shooter s) {
+        if (!s.isSpawning()) return;
+        float p = 1f - MathUtils.clamp(s.spawnTimer / Shooter.SPAWN_TIME, 0f, 1f); // 0 → 1
+        float pulse = 0.5f + 0.5f * MathUtils.sin(world.time * 18f);
+        float rad = s.halfWidth() * (2.6f - 1.4f * p) + 14f * pulse;
+        // glow brightens toward the middle of the fade and dissolves at the end
+        float env = MathUtils.sin(p * MathUtils.PI);
+        shape.setColor(Palette.enemyBody.r, Palette.enemyBody.g, Palette.enemyBody.b, 0.16f * env);
+        shape.circle(s.x, s.y, rad + 26f * (1f - p));
+        shape.setColor(Palette.enemySlide.r, Palette.enemySlide.g, Palette.enemySlide.b, 0.30f * env);
+        shape.circle(s.x, s.y, rad);
     }
 
     private void drawBullet(Bullet b) {
@@ -168,42 +193,70 @@ public class WorldRenderer {
         shape.circle(f.x, f.y, 5f * p + 2f);
     }
 
+    /** Dissolve-out effects for a defeated enemy while its death animation
+     *  plays: two expanding shockwave rings whose brightness follows a sine
+     *  envelope (bright at first, gone by the end). Drawn in the main filled
+     *  pass where blending is re-enabled every frame (see
+     *  docs/libgdx-alpha-blending.md). */
+    private void drawDeathFx(Shooter e) {
+        if (!e.isDying()) return;
+        float p = 1f - e.deathTimer / Shooter.DEATH_TIME; // 0 → 1 over the dissolve
+        float env = MathUtils.sin(p * MathUtils.PI);
+        shape.setColor(Palette.enemySlide.r, Palette.enemySlide.g, Palette.enemySlide.b, 0.45f * env);
+        shape.circle(e.x, e.y, 40f + 130f * p);
+        shape.setColor(Palette.enemyBody.r, Palette.enemyBody.g, Palette.enemyBody.b, 0.25f * env);
+        shape.circle(e.x, e.y, 30f + 90f * p);
+    }
+
     private void drawShooterFilled(Shooter s) {
-        if (s.dead) return;
+        if (s.dead && !s.isDying()) return;
+        float a = s.spawnAlpha();
+        if (s.dead) a *= s.deathAlpha();
+        // while dissolving the wreck tips over nose-down and sinks slightly
+        float dieP = s.dead ? 1f - s.deathAlpha() : 0f;
+        float dieTilt = 0.9f * dieP;
+        float dieSink = 26f * dieP * dieP;
         float cos = MathUtils.cos(s.angle);
         float sin = MathUtils.sin(s.angle);
-        shooterM.setToTranslation(s.x - cos * s.recoilVis * 10f, s.y - sin * s.recoilVis * 10f, 0f)
-                .rotateRad(0f, 0f, 1f, s.angle + s.recoilVis * 0.16f)
+        shooterM.setToTranslation(s.x - cos * s.recoilVis * 10f,
+                        s.y - sin * s.recoilVis * 10f - dieSink, 0f)
+                .rotateRad(0f, 0f, 1f, s.angle + s.recoilVis * 0.16f + dieTilt)
                 .scale(1.5f, 1.5f, 1f);
         shape.setTransformMatrix(shooterM);
 
-        shape.setColor(s.body);
+        shape.setColor(s.body.r, s.body.g, s.body.b, s.body.a * a);
         roundedRect(-4f, -12f, 50f, 24f, 7f);
-        shape.setColor(s.slide);
+        shape.setColor(s.slide.r, s.slide.g, s.slide.b, s.slide.a * a);
         shape.rect(-2f, 10f, 44f, 2.2f);
-        shape.setColor(s.barrel);
+        shape.setColor(s.barrel.r, s.barrel.g, s.barrel.b, s.barrel.a * a);
         roundedRect(40f, -5f, 28f, 10f, 2.5f);
-        shape.setColor(s.grip);
+        shape.setColor(s.grip.r, s.grip.g, s.grip.b, s.grip.a * a);
         shape.rect(64f, -4f, 6f, 8f);
         roundedRect(2f, -30f, 18f, 20f, 4f);
-        shape.setColor(s.slide);
+        shape.setColor(s.slide.r, s.slide.g, s.slide.b, s.slide.a * a);
         shape.circle(55f, 12f, 2f);
 
         shape.setTransformMatrix(idM.idt());
     }
 
     private void drawShooterOutline(Shooter s) {
-        if (s.dead) return;
+        if (s.dead && !s.isDying()) return;
+        float a = s.spawnAlpha();
+        if (s.dead) a *= s.deathAlpha();
+        float dieP = s.dead ? 1f - s.deathAlpha() : 0f;
+        float dieTilt = 0.9f * dieP;
+        float dieSink = 26f * dieP * dieP;
         float cos = MathUtils.cos(s.angle);
         float sin = MathUtils.sin(s.angle);
-        shooterM.setToTranslation(s.x - cos * s.recoilVis * 10f, s.y - sin * s.recoilVis * 10f, 0f)
-                .rotateRad(0f, 0f, 1f, s.angle + s.recoilVis * 0.16f)
+        shooterM.setToTranslation(s.x - cos * s.recoilVis * 10f,
+                        s.y - sin * s.recoilVis * 10f - dieSink, 0f)
+                .rotateRad(0f, 0f, 1f, s.angle + s.recoilVis * 0.16f + dieTilt)
                 .scale(1.5f, 1.5f, 1f);
         shape.setTransformMatrix(shooterM);
 
-        shape.setColor(0f, 0f, 0f, 0.20f);
+        shape.setColor(0f, 0f, 0f, 0.20f * a);
         shape.circle(32f, -2f, 7.5f);
-        shape.setColor(s.slide.r, s.slide.g, s.slide.b, 0.6f);
+        shape.setColor(s.slide.r, s.slide.g, s.slide.b, 0.6f * a);
         shape.line(0f, 9f, 22f, 9f);
         shape.line(0f, 7f, 22f, 7f);
 
@@ -243,23 +296,26 @@ public class WorldRenderer {
     }
 
     private void drawHealthBar(Shooter s) {
+        float a = s.spawnAlpha();
         float frac = MathUtils.clamp((float) s.hp / s.maxHp, 0f, 1f);
         float bw = 70f, bh = 9f;
         float bx = s.x - bw * 0.5f;
         float by = s.y + s.halfHeight() + 12f;
-        shape.setColor(Palette.healthBg);
+        shape.setColor(Palette.healthBg.r, Palette.healthBg.g, Palette.healthBg.b, Palette.healthBg.a * a);
         roundedRect(bx, by, bw, bh, 4f);
         if (frac > 0.001f) {
-            shape.setColor(lerpCol(Palette.healthLo, Palette.healthHi, frac));
+            Color c = lerpCol(Palette.healthLo, Palette.healthHi, frac);
+            shape.setColor(c.r, c.g, c.b, c.a * a);
             roundedRect(bx + 2f, by + 2f, (bw - 4f) * frac, bh - 4f, 2.5f);
         }
     }
 
     private void drawHealthBarBorder(Shooter s) {
+        float a = s.spawnAlpha();
         float bw = 70f, bh = 9f;
         float bx = s.x - bw * 0.5f;
         float by = s.y + s.halfHeight() + 12f;
-        shape.setColor(Palette.textCol.r, Palette.textCol.g, Palette.textCol.b, 0.5f);
+        shape.setColor(Palette.textCol.r, Palette.textCol.g, Palette.textCol.b, 0.5f * a);
         shape.rect(bx, by, bw, bh);
     }
 

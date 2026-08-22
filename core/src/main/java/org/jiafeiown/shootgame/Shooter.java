@@ -17,6 +17,12 @@ public class Shooter {
     public static final float KNOCKBACK = 130f;
     public static final int BULLET_DAMAGE = 14;
     public static final int BASE_HP = 100;
+    /** Seconds a freshly spawned enemy spends materializing: it can neither
+     *  move nor fire, takes no damage, and fades in from transparent. */
+    public static final float SPAWN_TIME = 1f;
+    /** Seconds a defeated enemy lingers on screen while its dissolve-out
+     *  plays: the body fades away, tips over and sinks slightly. */
+    public static final float DEATH_TIME = 0.5f;
 
     public final boolean isPlayer;
     public float x, y, vx, vy, angle;
@@ -31,6 +37,15 @@ public class Shooter {
     public int damage;
     public float dodgeCooldown;
     public int burst;
+    /** Remaining seconds of the spawn fade-in; 0 once fully materialized.
+     *  Only armed for enemies ({@link RoundManager} sets it on spawn); the
+     *  player spawns instantly. While > 0 the shooter is frozen in place:
+     *  no physics, no AI actions and no damage taken. */
+    public float spawnTimer = 0f;
+    /** Remaining seconds of the death dissolve-out; armed only for enemies
+     *  at the moment they die ({@code dead == true}). While > 0 the corpse is
+     *  still drawn, fading away; round progression waits for it to finish. */
+    public float deathTimer = 0f;
     /** Remaining seconds of damage immunity; decremented in {@link #update}.
      *  Only the player uses it today, but it is generic on purpose. */
     public float invincibleTime;
@@ -58,8 +73,41 @@ public class Shooter {
                 isPlayer ? "Player" : "Enemy", x, y, maxHp, fireInterval);
     }
 
+    /** True while this shooter is still materializing after its spawn. */
+    public boolean isSpawning() {
+        return spawnTimer > 0f;
+    }
+
+    /** Fade-in progress of the spawn transition, 0 (invisible) → 1 (solid),
+     *  shaped with a smoothstep so the appearance eases in rather than
+     *  ramping linearly. */
+    public float spawnAlpha() {
+        float a = MathUtils.clamp(1f - spawnTimer / SPAWN_TIME, 0f, 1f);
+        return a * a * (3f - 2f * a);
+    }
+
+    /** True while this dead shooter's dissolve-out is still on screen. */
+    public boolean isDying() {
+        return dead && deathTimer > 0f;
+    }
+
+    /** Fade-out progress of the death transition, 1 (just died) → 0 (gone). */
+    public float deathAlpha() {
+        return MathUtils.clamp(deathTimer / DEATH_TIME, 0f, 1f);
+    }
+
     public void update(float dt) {
-        if (dead) return;
+        // dead shooters keep only their dissolve timer ticking; everything
+        // else about them is frozen exactly as they fell
+        if (dead) {
+            if (deathTimer > 0f) deathTimer = Math.max(0f, deathTimer - dt);
+            return;
+        }
+        // still materializing: hold perfectly still until the fade-in ends
+        if (spawnTimer > 0f) {
+            spawnTimer = Math.max(0f, spawnTimer - dt);
+            return;
+        }
         if (invincibleTime > 0f) invincibleTime = Math.max(0f, invincibleTime - dt);
         fireCooldown -= dt;
         recoilVis *= (float) Math.exp(-dt * 14f);
@@ -189,6 +237,8 @@ public class Shooter {
 
     public void takeDamage(int dmg, float nx, float ny) {
         if (dead) return;
+        // bullets pass through a shooter that hasn't finished materializing
+        if (isSpawning()) return;
         if (invincibleTime > 0f) return;
         hp -= dmg;
         if (hp < 0) hp = 0;
@@ -196,6 +246,9 @@ public class Shooter {
         vy += ny * KNOCKBACK;
         if (hp == 0) {
             dead = true;
+            // enemies linger briefly and dissolve instead of vanishing in a
+            // single frame; the player just drops (the game-over screen takes over)
+            if (!isPlayer) deathTimer = DEATH_TIME;
             log.debug("{} died ({} damage taken)", isPlayer ? "Player" : "Enemy", dmg);
         } else {
             log.trace("{} took {} damage (hp {} → {})", isPlayer ? "Player" : "Enemy", dmg, hp + dmg, hp);
