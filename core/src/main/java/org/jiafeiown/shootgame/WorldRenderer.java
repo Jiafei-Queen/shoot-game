@@ -22,6 +22,13 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
  */
 public class WorldRenderer {
 
+    /** Game-over screen baselines, shared with the layout regression test:
+     *  the total-time line and the restart hint sit close together at the
+     *  bottom of the stats block and must never overlap (the hint is drawn
+     *  at a smaller scale, but still needs a clear gap). */
+    static final float GAME_OVER_TIME_Y = WorldConfig.WORLD_H * 0.31f;
+    static final float GAME_OVER_HINT_Y = WorldConfig.WORLD_H * 0.20f;
+
     private final GameWorld world;
 
     private OrthographicCamera cam;
@@ -350,18 +357,20 @@ public class WorldRenderer {
             int minutes = (int) (world.time / 60f);
             int seconds = (int) world.time % 60;
             // GWT's Java emulation has no String.format, so pad by hand
-            String timeStr = (minutes < 10 ? "0" : "") + minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+            String timeStr = "TIME  " + (minutes < 10 ? "0" : "") + minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
             font.getData().setScale(1.7f);
             layout.setText(font, timeStr);
             font.setColor(Palette.hintCol);
-            font.draw(batch, timeStr, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.31f);
+            font.draw(batch, timeStr, (WorldConfig.WORLD_W - layout.width) * 0.5f, GAME_OVER_TIME_Y);
 
             font.getData().setScale(1.6f);
 
             font.setColor(Palette.hintCol);
             String restartHint = GameWorld.isTouchDevice() ? "Tap to restart" : "Press R to restart";
             layout.setText(font, restartHint);
-            font.draw(batch, restartHint, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.30f);
+            // well below the time line: the two must never overlap (see the
+            // GameOverLayoutTest regression guard)
+            font.draw(batch, restartHint, (WorldConfig.WORLD_W - layout.width) * 0.5f, GAME_OVER_HINT_Y);
         } else {
             // top-left counters: enemies killed and current round
             font.getData().setScale(2.5f);
