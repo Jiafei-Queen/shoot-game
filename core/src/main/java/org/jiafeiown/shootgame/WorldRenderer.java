@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 
@@ -94,6 +95,7 @@ public class WorldRenderer {
 
         drawHud();
         drawRoundBanner();
+        if (world.rounds.isPaused()) drawPauseMenu();
     }
 
     // ---------------- drawing ----------------
@@ -260,6 +262,7 @@ public class WorldRenderer {
     }
 
     private void drawHud() {
+        if (world.rounds.isPaused()) return;
         batch.setProjectionMatrix(cam.combined);
         batch.begin();
 
@@ -335,6 +338,7 @@ public class WorldRenderer {
      * the fight (and the player's controls) carry on underneath it.
      */
     private void drawRoundBanner() {
+        if (world.rounds.isPaused()) return;
         if (world.rounds.isGameOver() || world.rounds.roundBannerTime <= 0f) return;
         // t: elapsed time since the round started (0 → ROUND_BANNER_TIME).
         // The veil fades in to 50% over the first 0.3s, settles to 20% over
@@ -397,6 +401,70 @@ public class WorldRenderer {
         batch.end();
     }
 
+    /** Pause overlay: dim veil over the frozen world, title, and the three
+     *  clickable options. The hovered option is picked out in the player's mint. */
+    private void drawPauseMenu() {
+        // Blending must be re-enabled: the SpriteBatch from drawHud()/banner
+        // leaves GL_BLEND off, and without it the veil renders as an opaque
+        // blackout instead of a translucent dim.
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shape.setTransformMatrix(idM.idt());
+        shape.begin(ShapeRenderer.ShapeType.Filled);
+        shape.setColor(0f, 0f, 0f, 0.55f);
+        shape.rect(0f, 0f, WorldConfig.WORLD_W, WorldConfig.WORLD_H);
+        shape.end();
+
+        float[] mp = unproject(Gdx.input.getX(), Gdx.input.getY());
+        int hover = pauseOptionAt(mp[0], mp[1]);
+
+        batch.setProjectionMatrix(cam.combined);
+        batch.begin();
+
+        font.getData().setScale(3f);
+        font.setColor(Palette.textCol);
+        String title = "PAUSED";
+        layout.setText(font, title);
+        font.draw(batch, title, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.70f);
+
+        font.getData().setScale(GameWorld.PAUSE_OPTION_SCALE);
+        for (int i = 0; i < GameWorld.PAUSE_OPTIONS.length; i++) {
+            layout.setText(font, GameWorld.PAUSE_OPTIONS[i]);
+            float ox = (WorldConfig.WORLD_W - layout.width) * 0.5f;
+            float oy = GameWorld.PAUSE_MENU_START_Y - i * GameWorld.PAUSE_OPTION_SPACING;
+            font.setColor(i == hover ? Palette.playerBody : Palette.hintCol);
+            font.draw(batch, GameWorld.PAUSE_OPTIONS[i], ox, oy);
+        }
+
+        font.getData().setScale(1.3f);
+        font.setColor(Palette.hintCol.r, Palette.hintCol.g, Palette.hintCol.b, 0.7f);
+        String hint = "ESC to resume";
+        layout.setText(font, hint);
+        font.draw(batch, hint, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.16f);
+
+        batch.end();
+    }
+
+    /**
+     * Pause-menu hit test: index of the option whose box contains the world
+     * point (x, y), or -1 when the cursor is outside every option. Read-only
+     * measurement — the click is acted upon by {@link GameWorld}.
+     */
+    int pauseOptionAt(float x, float y) {
+        font.getData().setScale(GameWorld.PAUSE_OPTION_SCALE);
+        float pad = 14f;
+        for (int i = 0; i < GameWorld.PAUSE_OPTIONS.length; i++) {
+            layout.setText(font, GameWorld.PAUSE_OPTIONS[i]);
+            float ox = (WorldConfig.WORLD_W - layout.width) * 0.5f;
+            float oy = GameWorld.PAUSE_MENU_START_Y - i * GameWorld.PAUSE_OPTION_SPACING;
+            if (x >= ox - pad && x <= ox + layout.width + pad
+                    && y >= oy - layout.height - pad && y <= oy + pad) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     private Color lerpCol(Color a, Color b, float t) {
         lerpTmp.set(
                 a.r + (b.r - a.r) * t,
@@ -415,6 +483,21 @@ public class WorldRenderer {
         shape.circle(x + w - r, y + r, r);
         shape.circle(x + r, y + h - r, r);
         shape.circle(x + w - r, y + h - r, r);
+    }
+
+    public OrthographicCamera getCam() { return cam; }
+
+    /** Converts a screen/touch position (origin top-left, as reported by
+     *  {@code Gdx.input.getX()/getY()}) into world coordinates. libGDX's
+     *  {@code Camera.unproject} already expects touch coordinates and flips the
+     *  Y axis internally, so no manual flip is needed; the viewport bounds are
+     *  passed through so the mapping stays exact even when the window is
+     *  letterboxed by the {@link FitViewport}. */
+    public float[] unproject(float screenX, float screenY) {
+        Vector3 v = new Vector3(screenX, screenY, 0f);
+        cam.unproject(v, viewport.getScreenX(), viewport.getScreenY(),
+                viewport.getScreenWidth(), viewport.getScreenHeight());
+        return new float[]{v.x, v.y};
     }
 
     public void resize(int width, int height) {

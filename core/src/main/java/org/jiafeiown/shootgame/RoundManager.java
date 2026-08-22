@@ -29,6 +29,15 @@ public class RoundManager {
     float roundBannerTime = 0f;
     /** Enemy count of the current round, shown under the banner title. */
     int roundEnemies = 0;
+    /** Kills/damage tallies when the current round started; restoring them on
+     *  a round restart discards the stats earned in the aborted attempt. */
+    private int killsAtRoundStart;
+    private int damageAtRoundStart;
+    /** Player state when the current round started, restored by
+     *  {@link #restartRound()} so a restarted round plays out from the exact
+     *  same opening: position, muzzle orientation, velocity and hp. */
+    private float startPlayerX, startPlayerY, startPlayerAngle, startPlayerVx, startPlayerVy;
+    private int startPlayerHp;
 
     public RoundManager(GameWorld world) {
         this.world = world;
@@ -36,6 +45,53 @@ public class RoundManager {
 
     boolean isGameOver() {
         return state == GameState.GAME_OVER;
+    }
+
+    boolean isPaused() {
+        return state == GameState.PAUSED;
+    }
+
+    void pause() {
+        state = GameState.PAUSED;
+    }
+
+    void resume() {
+        state = GameState.PLAYING;
+    }
+
+    /** Ends the match immediately and shows the settlement screen, as if the
+     *  player had been defeated. The player is marked dead so the renderer
+     *  drops the sprite, exactly like the defeat flow. */
+    void endGame() {
+        log.info("Game ended early by player | round={}, kills={}, damageDealt={}", round, kills, damageDealt);
+        world.player.dead = true;
+        state = GameState.GAME_OVER;
+    }
+
+    /** Restarts the current round from its very beginning: the player is put
+     *  back to the position/orientation/velocity/hp recorded when the round
+     *  started, every bullet and effect from the aborted attempt is discarded,
+     *  the enemies respawn at their opening spots, and the match stats roll
+     *  back to where they stood when the round began. */
+    void restartRound() {
+        state = GameState.PLAYING;
+        // roll back the aborted attempt's tallies before respawning, so the
+        // fresh round's snapshot records the restored values
+        kills = killsAtRoundStart;
+        damageDealt = damageAtRoundStart;
+        world.player.x = startPlayerX;
+        world.player.y = startPlayerY;
+        world.player.angle = startPlayerAngle;
+        world.player.vx = startPlayerVx;
+        world.player.vy = startPlayerVy;
+        world.player.hp = startPlayerHp;
+        // a restarted round opens on an empty field: no bullets in flight, no
+        // lingering particles or muzzle flashes from the attempt
+        world.bullets.clear();
+        world.fx.clear();
+        log.info("Round {} restarted | player back to start (hp {}), kills/damage rolled back to {}/{}",
+                round, startPlayerHp, kills, damageDealt);
+        spawnRound();
     }
 
     /** Resets to round 1 and spawns the first wave. */
@@ -84,7 +140,21 @@ public class RoundManager {
     /** Spawns this round's enemies: one more than the previous round (up to
      *  {@link #MAX_ENEMIES}), each with +5% max hp and bullet damage per round. */
     private void spawnRound() {
+        // this is the moment the round begins: whatever state the player is in
+        // right now is what a restarted round must return to
+        startPlayerX = world.player.x;
+        startPlayerY = world.player.y;
+        startPlayerAngle = world.player.angle;
+        startPlayerVx = world.player.vx;
+        startPlayerVy = world.player.vy;
+        startPlayerHp = world.player.hp;
+        // every round opens on an empty field: any bullets still in flight
+        // from the previous round are discarded, so the round-start scene is
+        // well-defined (and reproducible by a restart)
+        world.bullets.clear();
         world.enemies.clear();
+        killsAtRoundStart = kills;
+        damageAtRoundStart = damageDealt;
         int count = Math.min(round, MAX_ENEMIES);
         float mult = (float) Math.pow(ENEMY_GROWTH, round - 1);
         int hp = Math.max(1, Math.round(Shooter.BASE_HP * mult));

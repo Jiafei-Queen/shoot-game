@@ -17,6 +17,15 @@ public class GameWorld {
     /** Read by {@link WorldRenderer} for the round banner's timing. */
     static final float ROUND_BANNER_TIME = 2.5f;
 
+    /** Pause menu layout, shared between the click hit-testing here and the
+     *  drawing in {@link WorldRenderer}. Labels stay ASCII because the default
+     *  BitmapFont has no glyphs for other scripts. */
+    static final String[] PAUSE_OPTIONS = {"CONTINUE", "END GAME", "RESTART ROUND"};
+    static final float PAUSE_OPTION_SCALE = 2f;
+    static final float PAUSE_OPTION_SPACING = 60f;
+    /** Y of the first (top) option's baseline; the rest sit below it. */
+    static final float PAUSE_MENU_START_Y = WorldConfig.WORLD_H * 0.5f;
+
     private WorldRenderer renderer;
     private final EnemyAI enemyAI = new EnemyAI(this);
     private final CollisionSystem collision = new CollisionSystem(this);
@@ -59,7 +68,9 @@ public class GameWorld {
     }
 
     private void update(float dt) {
+        if (rounds.state == GameState.PAUSED) return;
         if (rounds.isGameOver()) return;
+
         time += dt;
         rounds.updateBanner(dt);
         float invBefore = player.invincibleTime;
@@ -84,10 +95,45 @@ public class GameWorld {
     }
 
     private void handleInput() {
+        // while paused the only inputs that matter are the pause menu's
+        if (rounds.isPaused()) {
+            handlePauseInput();
+            return;
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) reset();
         if (rounds.isGameOver()) return;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            rounds.pause();
+            log.info("Game paused (round {})", rounds.round);
+            return;
+        }
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE) && player.fireCooldown <= 0f) {
             fire(player);
+        }
+    }
+
+    /** Pause menu interactions: ESC resumes, clicking an option acts on it. */
+    private void handlePauseInput() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            rounds.resume();
+            log.info("Game resumed");
+            return;
+        }
+        if (!Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) return;
+        float[] p = renderer.unproject(Gdx.input.getX(), Gdx.input.getY());
+        switch (renderer.pauseOptionAt(p[0], p[1])) {
+            case 0: // CONTINUE
+                rounds.resume();
+                log.info("Game resumed");
+                break;
+            case 1: // END GAME
+                rounds.endGame();
+                break;
+            case 2: // RESTART ROUND
+                rounds.restartRound();
+                break;
+            default:
+                break;
         }
     }
 

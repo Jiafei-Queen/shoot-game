@@ -8,5 +8,6 @@ package org.jiafeiown.shootgame;
  */
 enum GameState {
     PLAYING,
+    PAUSED,
     GAME_OVER
 }
