@@ -63,6 +63,14 @@ public class GameWorld {
 
     float time;
 
+    /** Set when play begins via a fire-shaped input (the ENTER/SPACE press or
+     *  tap on the start screen, a tap-to-restart after game over). That same
+     *  key/tap is still down on the following frames, so without this latch
+     *  entering the match would also fire a shot. Firing stays suppressed
+     *  until every fire input is released once, then behaves normally.
+     *  Package-private so tests can inspect the latch without Gdx.input. */
+    boolean fireLatch;
+
     public void create() {
         renderer = new WorldRenderer(this);
         renderer.create();
@@ -111,6 +119,8 @@ public class GameWorld {
     void startGame() {
         log.info("Starting new game from start screen");
         reset();
+        // the START key/tap is still down: don't let it fire the first shot
+        fireLatch = true;
         audio.playNextRound();
     }
 
@@ -184,6 +194,8 @@ public class GameWorld {
             if (Gdx.input.justTouched()) {
                 log.info("Restarting via tap after game over");
                 reset();
+                // the restarting tap is still down: don't let it fire either
+                fireLatch = true;
             }
             return;
         }
@@ -205,8 +217,28 @@ public class GameWorld {
     /** True while the player wants to fire: SPACE held (desktop) or any touch
      *  down outside the pause button (mobile/web, and mouse-hold on desktop).
      *  A quick tap fires one shot; holding keeps firing on cooldown, exactly
-     *  like holding SPACE. */
+     *  like holding SPACE.
+     *
+     *  While {@link #fireLatch} is set, firing is suppressed until every fire
+     *  input has been released once — the key or tap that started the match
+     *  must never carry over into an accidental first shot. */
     private boolean fireHeld() {
+        return fireHeld(rawFireInput());
+    }
+
+    /** Pure decision path of {@link #fireHeld()}, split out so the latch is
+     *  unit-testable without Gdx.input: while {@link #fireLatch} is set the
+     *  held input is ignored, and the first observation of "nothing held"
+     *  clears the latch so normal firing resumes. */
+    boolean fireHeld(boolean rawInput) {
+        if (fireLatch) {
+            if (rawInput) return false; // still holding the starting key/tap
+            fireLatch = false; // released: normal firing resumes from here
+        }
+        return rawInput;
+    }
+
+    private boolean rawFireInput() {
         if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) return true;
         for (int i = 0; i < 10; i++) {
             if (Gdx.input.isTouched(i) && !pauseButtonHit(i)) return true;
