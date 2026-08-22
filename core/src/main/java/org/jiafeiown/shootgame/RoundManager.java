@@ -19,6 +19,22 @@ public class RoundManager {
     private static final int MAX_ENEMIES = 6;
     private static final float ENEMY_GROWTH = 1.05f;
 
+    /** Pause menu wind-down: after ESC the world doesn't freeze dead, it
+     *  eases through a slow-mo curve — 1x → 0.2x over the first
+     *  {@value #PAUSE_SLOWMO_TIME}s, then 0.2x → 0x (fully frozen) by
+     *  {@value #PAUSE_TRANSITION_TIME}s — while the pause screen fades in over
+     *  the same window. */
+    static final float PAUSE_TRANSITION_TIME = 1f;
+    static final float PAUSE_SLOWMO_TIME = 0.3f;
+    static final float PAUSE_SLOWMO_SCALE = 0.2f;
+
+    /** Resume fade-out: leaving the pause menu holds it essentially opaque for
+     *  the first {@value #RESUME_HOLD_TIME}s, then fades it away by
+     *  {@value #RESUME_TRANSITION_TIME}s — only then does the game actually
+     *  resume. The world stays frozen for the whole fade-out. */
+    static final float RESUME_TRANSITION_TIME = 0.5f;
+    static final float RESUME_HOLD_TIME = 0.2f;
+
     private final GameWorld world;
 
     int round = 1;
@@ -29,6 +45,16 @@ public class RoundManager {
     float roundBannerTime = 0f;
     /** Enemy count of the current round, shown under the banner title. */
     int roundEnemies = 0;
+    /** Seconds since the pause menu opened, 0 → {@link #PAUSE_TRANSITION_TIME}.
+     *  Drives the slow-mo time scale ({@link #pauseTimeScale()}) and the menu
+     *  fade-in ({@link #pauseFade()}). Reset on every pause/resume. */
+    float pauseTransition = 0f;
+    /** True while the pause screen is fading out after a resume request; the
+     *  world stays frozen until the fade completes and {@link #resume()} flips
+     *  the state back to PLAYING. */
+    boolean resuming = false;
+    /** Seconds into the resume fade-out, 0 → {@link #RESUME_TRANSITION_TIME}. */
+    float resumeProgress = 0f;
     /** Kills/damage tallies when the current round started; restoring them on
      *  a round restart discards the stats earned in the aborted attempt. */
     private int killsAtRoundStart;
@@ -53,12 +79,59 @@ public class RoundManager {
 
     void pause() {
         state = GameState.PAUSED;
+        pauseTransition = 0f;
+        resuming = false;
+        resumeProgress = 0f;
         world.audio.startPauseLoop();
     }
 
+    /** Instant resume, no fade-out. Used when a resume is requested while the
+     *  world is still winding down (the menu was barely visible anyway) and by
+     *  {@link #advanceResume(float)} once the fade-out has completed. */
     void resume() {
         state = GameState.PLAYING;
+        pauseTransition = 0f;
+        resuming = false;
+        resumeProgress = 0f;
         world.audio.stopPauseLoop();
+    }
+
+    /** Starts the 0.5s fade-out of the pause screen; the game resumes once the
+     *  menu has fully faded. If the pause was still winding down (slow-mo not
+     *  yet at a standstill) the resume is instant instead — there is no fully
+     *  opaque menu to fade away. */
+    void beginResume() {
+        if (!isFullyPaused()) {
+            resume();
+            return;
+        }
+        resuming = true;
+        resumeProgress = 0f;
+        world.audio.stopPauseLoop();
+    }
+
+    /** The player changed their mind mid-fade-out: snap back to the fully
+     *  paused, opaque menu (the world never unfroze). */
+    void cancelResume() {
+        resuming = false;
+        resumeProgress = 0f;
+        world.audio.startPauseLoop();
+    }
+
+    /** Advances the resume fade-out by real time; flips to PLAYING once the
+     *  menu has fully faded away. Returns whether the transition is still
+     *  running — while true the world stays frozen. */
+    boolean advanceResume(float dt) {
+        resumeProgress = Math.min(RESUME_TRANSITION_TIME, resumeProgress + dt);
+        if (resumeProgress >= RESUME_TRANSITION_TIME) {
+            resume();
+            return false;
+        }
+        return true;
+    }
+
+    boolean isResuming() {
+        return resuming;
     }
 
     /** Ends the match immediately and shows the settlement screen, as if the
@@ -68,6 +141,9 @@ public class RoundManager {
         log.info("Game ended early by player | round={}, kills={}, damageDealt={}", round, kills, damageDealt);
         world.player.dead = true;
         state = GameState.GAME_OVER;
+        pauseTransition = 0f;
+        resuming = false;
+        resumeProgress = 0f;
         world.audio.stopPauseLoop();
         world.audio.playGameOver();
     }
@@ -79,6 +155,9 @@ public class RoundManager {
      *  back to where they stood when the round began. */
     void restartRound() {
         state = GameState.PLAYING;
+        pauseTransition = 0f;
+        resuming = false;
+        resumeProgress = 0f;
         world.audio.stopPauseLoop();
         // roll back the aborted attempt's tallies before respawning, so the
         // fresh round's snapshot records the restored values
@@ -105,8 +184,60 @@ public class RoundManager {
         kills = 0;
         damageDealt = 0;
         state = GameState.PLAYING;
+        pauseTransition = 0f;
+        resuming = false;
+        resumeProgress = 0f;
         world.audio.stopPauseLoop();
         spawnRound();
+    }
+
+    /** Advances the pause transition by real time and returns the world time
+     *  scale to apply this frame: 1x at the moment ESC is pressed, easing down
+     *  to 0.2x after {@link #PAUSE_SLOWMO_TIME} and 0x — fully frozen — by
+     *  {@link #PAUSE_TRANSITION_TIME}. */
+    float advancePauseTransition(float dt) {
+        pauseTransition = Math.min(PAUSE_TRANSITION_TIME, pauseTransition + dt);
+        return pauseTimeScale();
+    }
+
+    /** World time scale along the pause transition curve: linear 1x → 0.2x
+     *  over the first 0.3s, then linear 0.2x → 0x by 1s. */
+    float pauseTimeScale() {
+        float t = pauseTransition;
+        if (t >= PAUSE_TRANSITION_TIME) return 0f;
+        if (t < PAUSE_SLOWMO_TIME) {
+            return 1f - (1f - PAUSE_SLOWMO_SCALE) * (t / PAUSE_SLOWMO_TIME); // 1x → 0.2x
+        }
+        return PAUSE_SLOWMO_SCALE * (1f - (t - PAUSE_SLOWMO_TIME)
+                / (PAUSE_TRANSITION_TIME - PAUSE_SLOWMO_TIME));              // 0.2x → 0x
+    }
+
+    /** Pause screen opacity while winding down: a linear fade-in across the
+     *  whole transition. The combined {@link #pauseMenuAlpha()} switches to the
+     *  resume fade-out curve once a resume is requested. */
+    float pauseFade() {
+        return Math.min(1f, pauseTransition / PAUSE_TRANSITION_TIME);
+    }
+
+    /** Current pause screen opacity, 0..1: fades in linearly across the
+     *  wind-down, holds at 1 while fully paused, and on resume holds essentially
+     *  opaque for the first {@value #RESUME_HOLD_TIME}s before fading away by
+     *  {@value #RESUME_TRANSITION_TIME}s. */
+    float pauseMenuAlpha() {
+        if (resuming) {
+            float r = resumeProgress;
+            if (r >= RESUME_TRANSITION_TIME) return 0f;
+            if (r < RESUME_HOLD_TIME) return 1f;
+            return 1f - (r - RESUME_HOLD_TIME) / (RESUME_TRANSITION_TIME - RESUME_HOLD_TIME);
+        }
+        return pauseFade();
+    }
+
+    /** True once the transition has finished: the world is fully frozen and
+     *  the pause screen is opaque. Until then the HUD/round banner stay up and
+     *  the world keeps moving at the slow-mo scale. */
+    boolean isFullyPaused() {
+        return state == GameState.PAUSED && pauseTransition >= PAUSE_TRANSITION_TIME;
     }
 
     /** Counts the round-start banner timer down toward zero. */

@@ -262,7 +262,9 @@ public class WorldRenderer {
     }
 
     private void drawHud() {
-        if (world.rounds.isPaused()) return;
+        // stays up during the slow-mo wind-down; only steps aside once the
+        // pause screen is fully opaque and the world has stopped
+        if (world.rounds.isFullyPaused()) return;
         batch.setProjectionMatrix(cam.combined);
         batch.begin();
 
@@ -338,7 +340,7 @@ public class WorldRenderer {
      * the fight (and the player's controls) carry on underneath it.
      */
     private void drawRoundBanner() {
-        if (world.rounds.isPaused()) return;
+        if (world.rounds.isFullyPaused()) return;
         if (world.rounds.isGameOver() || world.rounds.roundBannerTime <= 0f) return;
         // t: elapsed time since the round started (0 → ROUND_BANNER_TIME).
         // The veil fades in to 50% over the first 0.3s, settles to 20% over
@@ -401,9 +403,14 @@ public class WorldRenderer {
         batch.end();
     }
 
-    /** Pause overlay: dim veil over the frozen world, title, and the three
-     *  clickable options. The hovered option is picked out in the player's mint. */
+    /** Pause overlay: dim veil over the slowing world, title, and the three
+     *  clickable options. The hovered option is picked out in the player's mint.
+     *  The whole page fades in linearly from 0% as the world winds down and
+     *  fades out again over the resume transition (see
+     *  {@link RoundManager#pauseMenuAlpha()}). */
     private void drawPauseMenu() {
+        float fade = world.rounds.pauseMenuAlpha();
+        if (fade <= 0.001f) return;
         // Blending must be re-enabled: the SpriteBatch from drawHud()/banner
         // leaves GL_BLEND off, and without it the veil renders as an opaque
         // blackout instead of a translucent dim.
@@ -411,7 +418,7 @@ public class WorldRenderer {
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         shape.setTransformMatrix(idM.idt());
         shape.begin(ShapeRenderer.ShapeType.Filled);
-        shape.setColor(0f, 0f, 0f, 0.55f);
+        shape.setColor(0f, 0f, 0f, 0.55f * fade);
         shape.rect(0f, 0f, WorldConfig.WORLD_W, WorldConfig.WORLD_H);
         shape.end();
 
@@ -422,7 +429,7 @@ public class WorldRenderer {
         batch.begin();
 
         font.getData().setScale(3f);
-        font.setColor(Palette.textCol);
+        font.setColor(Palette.textCol.r, Palette.textCol.g, Palette.textCol.b, fade);
         String title = "PAUSED";
         layout.setText(font, title);
         font.draw(batch, title, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.70f);
@@ -432,12 +439,13 @@ public class WorldRenderer {
             layout.setText(font, GameWorld.PAUSE_OPTIONS[i]);
             float ox = (WorldConfig.WORLD_W - layout.width) * 0.5f;
             float oy = GameWorld.PAUSE_MENU_START_Y - i * GameWorld.PAUSE_OPTION_SPACING;
-            font.setColor(i == hover ? Palette.playerBody : Palette.hintCol);
+            Color c = i == hover ? Palette.playerBody : Palette.hintCol;
+            font.setColor(c.r, c.g, c.b, fade);
             font.draw(batch, GameWorld.PAUSE_OPTIONS[i], ox, oy);
         }
 
         font.getData().setScale(1.3f);
-        font.setColor(Palette.hintCol.r, Palette.hintCol.g, Palette.hintCol.b, 0.7f);
+        font.setColor(Palette.hintCol.r, Palette.hintCol.g, Palette.hintCol.b, 0.7f * fade);
         String hint = "ESC to resume";
         layout.setText(font, hint);
         font.draw(batch, hint, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.16f);

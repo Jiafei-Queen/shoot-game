@@ -76,8 +76,22 @@ public class GameWorld {
     }
 
     private void update(float dt) {
-        if (rounds.state == GameState.PAUSED) return;
         if (rounds.isGameOver()) return;
+        if (rounds.isPaused()) {
+            if (rounds.isResuming()) {
+                // menu is fading out: keep the world frozen until it's gone,
+                // then the state flips back to PLAYING
+                rounds.advanceResume(dt);
+                return;
+            }
+            // ESC doesn't freeze the world dead: it eases through a slow-mo
+            // curve (1x → 0.2x → 0x) while the pause menu fades in, so the
+            // action visibly winds down instead of cutting out. The transition
+            // itself advances in real time; only the world's dt is scaled.
+            float ts = rounds.advancePauseTransition(dt);
+            if (ts <= 0f) return; // fully frozen
+            dt *= ts;
+        }
 
         time += dt;
         rounds.updateBanner(dt);
@@ -120,19 +134,25 @@ public class GameWorld {
         }
     }
 
-    /** Pause menu interactions: ESC resumes, clicking an option acts on it. */
+    /** Pause menu interactions: ESC resumes (or cancels a resume in progress),
+     *  clicking an option acts on it. */
     private void handlePauseInput() {
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            rounds.resume();
-            log.info("Game resumed");
+            if (rounds.isResuming()) {
+                rounds.cancelResume();
+                log.info("Resume cancelled");
+            } else {
+                rounds.beginResume();
+                log.info("Game resuming");
+            }
             return;
         }
         if (!Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) return;
         float[] p = renderer.unproject(Gdx.input.getX(), Gdx.input.getY());
         switch (renderer.pauseOptionAt(p[0], p[1])) {
             case 0: // CONTINUE
-                rounds.resume();
-                log.info("Game resumed");
+                rounds.beginResume();
+                log.info("Game resuming");
                 break;
             case 1: // END GAME
                 rounds.endGame();
