@@ -33,6 +33,10 @@ public class GameWorld {
     final RoundManager rounds = new RoundManager(this);
     /** Visual effects (particles, muzzle flashes); read by the renderer. */
     final FxSystem fx = new FxSystem();
+    /** Sound effects and the looping pause music. Null-safe: unit tests build
+     *  a GameWorld without loading audio, in which case every playback call
+     *  is a silent no-op. */
+    final AudioManager audio = new AudioManager();
 
     Shooter player;
     final Array<Shooter> enemies = new Array<>();
@@ -43,6 +47,7 @@ public class GameWorld {
     public void create() {
         renderer = new WorldRenderer(this);
         renderer.create();
+        audio.create();
         log.info("GameWorld created (world {}x{}, ground top {})",
                 WorldConfig.WORLD_W, WorldConfig.WORLD_H, WorldConfig.GROUND_TOP);
         reset();
@@ -62,6 +67,9 @@ public class GameWorld {
 
     public void render() {
         float dt = MathUtils.clamp(Gdx.graphics.getDeltaTime(), 0f, 1f / 30f);
+        // audio fades must keep moving even while the game is frozen on the
+        // pause screen, so drive them here rather than inside update()
+        audio.update(dt);
         update(dt);
         handleInput();
         renderer.render();
@@ -139,11 +147,14 @@ public class GameWorld {
 
     /**
      * Fires a shooter's weapon: spawns the bullet plus the muzzle flash and
-     * smoke burst. Shared by the player input and {@link EnemyAI}.
+     * smoke burst, and plays the matching shot sound. Shared by the player
+     * input and {@link EnemyAI}.
      */
     void fire(Shooter s) {
         s.shoot(this);
         fx.muzzleEffects(s);
+        if (s.isPlayer) audio.playPlayerShoot();
+        else audio.playEnemyShoot();
     }
 
     public void spawnBullet(Shooter owner, float x, float y, float angle) {
@@ -157,5 +168,6 @@ public class GameWorld {
 
     public void dispose() {
         renderer.dispose();
+        audio.dispose();
     }
 }

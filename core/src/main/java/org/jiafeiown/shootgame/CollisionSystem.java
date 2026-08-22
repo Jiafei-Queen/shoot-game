@@ -59,14 +59,18 @@ public class CollisionSystem {
                     if (e.dead) continue;
                     if (e.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
                         b.dead = true;
+                        world.audio.playHitMetal();
                         e.takeDamage(b.owner.damage, b.nx, b.ny);
                         world.fx.burst(b.x, b.y, Palette.enemyHit, 10, 190f);
-                        if (b.owner.isPlayer) {
-                            world.rounds.damageDealt += b.owner.damage;
-                            if (e.dead) {
-                                world.rounds.kills++;
-                                log.debug("Enemy #{} killed | kills={}, damageDealt={}",
-                                        world.enemies.indexOf(e, true), world.rounds.kills, world.rounds.damageDealt);
+                        if (e.dead) {
+                            world.audio.playEnemyDie();
+                            if (b.owner.isPlayer) {
+                                world.rounds.damageDealt += b.owner.damage;
+                                if (e.dead) {
+                                    world.rounds.kills++;
+                                    log.debug("Enemy #{} killed | kills={}, damageDealt={}",
+                                            world.enemies.indexOf(e, true), world.rounds.kills, world.rounds.damageDealt);
+                                }
                             }
                         }
                         break;
@@ -94,6 +98,7 @@ public class CollisionSystem {
                         b.prevX, b.prevY, b.x, b.y) <= rr) {
                     a.dead = true;
                     b.dead = true;
+                    world.audio.playHitMetal();
                     float mx = (a.x + b.x) * 0.5f;
                     float my = (a.y + b.y) * 0.5f;
                     world.fx.burst(mx, my, a.color, 8, 240f);

@@ -53,10 +53,12 @@ public class RoundManager {
 
     void pause() {
         state = GameState.PAUSED;
+        world.audio.startPauseLoop();
     }
 
     void resume() {
         state = GameState.PLAYING;
+        world.audio.stopPauseLoop();
     }
 
     /** Ends the match immediately and shows the settlement screen, as if the
@@ -66,6 +68,8 @@ public class RoundManager {
         log.info("Game ended early by player | round={}, kills={}, damageDealt={}", round, kills, damageDealt);
         world.player.dead = true;
         state = GameState.GAME_OVER;
+        world.audio.stopPauseLoop();
+        world.audio.playGameOver();
     }
 
     /** Restarts the current round from its very beginning: the player is put
@@ -75,6 +79,7 @@ public class RoundManager {
      *  back to where they stood when the round began. */
     void restartRound() {
         state = GameState.PLAYING;
+        world.audio.stopPauseLoop();
         // roll back the aborted attempt's tallies before respawning, so the
         // fresh round's snapshot records the restored values
         kills = killsAtRoundStart;
@@ -100,6 +105,7 @@ public class RoundManager {
         kills = 0;
         damageDealt = 0;
         state = GameState.PLAYING;
+        world.audio.stopPauseLoop();
         spawnRound();
     }
 
@@ -117,6 +123,7 @@ public class RoundManager {
         if (world.player.dead) {
             log.info("Game over: player defeated in round {} | kills={}, damageDealt={}", round, kills, damageDealt);
             state = GameState.GAME_OVER;
+            world.audio.playGameOver();
             return;
         }
         // all enemies of the round cleared: heal the player 30% and move on
@@ -172,6 +179,8 @@ public class RoundManager {
         world.player.invincibleTime = GameWorld.INVINCIBLE_TIME;
         roundEnemies = count;
         roundBannerTime = GameWorld.ROUND_BANNER_TIME;
+        // every round after the first announces itself with the jingle
+        if (round > 1) world.audio.playNextRound();
         log.info("Round {} started: {} enemies (hp={}, dmg={})", round, count, hp, dmg);
     }
 }
