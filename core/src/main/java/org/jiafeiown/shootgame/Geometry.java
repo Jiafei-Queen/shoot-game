@@ -36,6 +36,13 @@ public final class Geometry {
         return Math.max(0f, tmin);
     }
 
+    /** True if the segment from (px,py) to (qx,qy) touches the box. */
+    static boolean segmentHitsBox(float px, float py, float qx, float qy,
+                                  float minX, float minY, float maxX, float maxY) {
+        float t = hitTimeAlong(px, py, qx - px, qy - py, minX, minY, maxX, maxY);
+        return t >= 0f && t <= 1f;
+    }
+
     /** Squared distance between the two line segments of the bullets' travel this frame. */
     static float segSegDistSq(float p1x, float p1y, float p2x, float p2y,
                               float q1x, float q1y, float q2x, float q2y) {

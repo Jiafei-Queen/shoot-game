@@ -148,6 +148,32 @@ public class Shooter {
         return false;
     }
 
+    /**
+     * True if the segment travelled by a bullet this frame (spawn point →
+     * current position) touches any part of the gun. Swept, so it does not
+     * depend on how far a single frame's movement is (i.e. on frame rate):
+     * a fast bullet can no longer tunnel through the gun's thin parts, and a
+     * bullet that spawns on top of a shooter registers immediately instead of
+     * only when the frame rate happens to leave it inside the hitbox.
+     */
+    public boolean bulletSegmentHits(float bx0, float by0, float bx1, float by1, float radius) {
+        float cos = MathUtils.cos(angle);
+        float sin = MathUtils.sin(angle);
+        float dx0 = bx0 - x, dy0 = by0 - y;
+        float lx0 = cos * dx0 + sin * dy0;
+        float ly0 = -sin * dx0 + cos * dy0;
+        float dx1 = bx1 - x, dy1 = by1 - y;
+        float lx1 = cos * dx1 + sin * dy1;
+        float ly1 = -sin * dx1 + cos * dy1;
+        for (float[] hb : HITBOXES) {
+            if (Geometry.segmentHitsBox(lx0, ly0, lx1, ly1,
+                    hb[0] - radius, hb[1] - radius, hb[2] + radius, hb[3] + radius)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void shoot(GameWorld world) {
         log.trace("{} fires at angle {} rad from ({}, {})", isPlayer ? "Player" : "Enemy", angle, x, y);
         fireCooldown = fireInterval;

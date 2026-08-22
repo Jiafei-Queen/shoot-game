@@ -1,6 +1,8 @@
 package org.jiafeiown.shootgame;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -55,6 +57,48 @@ class GeometryMathTest {
     @Test
     void stationaryRayOutsideBoxNeverHits() {
         assertEquals(-1f, Geometry.hitTimeAlong(20f, 0f, 0f, 0f, 5f, -2f, 10f, 2f), EPS);
+    }
+
+    // ---- segmentHitsBox: does the segment touch the box? ----
+
+    @Test
+    void segmentCrossingThroughBoxHits() {
+        assertTrue(Geometry.segmentHitsBox(-1f, 0f, 11f, 0f, 5f, -2f, 10f, 2f));
+    }
+
+    @Test
+    void segmentEndingInsideBoxHits() {
+        assertTrue(Geometry.segmentHitsBox(0f, 0f, 6f, 0f, 5f, -2f, 10f, 2f));
+    }
+
+    @Test
+    void segmentStartingInsideBoxHits() {
+        assertTrue(Geometry.segmentHitsBox(6f, 0f, 20f, 0f, 5f, -2f, 10f, 2f));
+    }
+
+    @Test
+    void segmentStoppingShortOfBoxMisses() {
+        assertFalse(Geometry.segmentHitsBox(0f, 0f, 4f, 0f, 5f, -2f, 10f, 2f));
+    }
+
+    @Test
+    void segmentMovingAwayFromBoxMisses() {
+        assertFalse(Geometry.segmentHitsBox(0f, 0f, -5f, 0f, 5f, -2f, 10f, 2f));
+    }
+
+    @Test
+    void segmentParallelAboveBoxMisses() {
+        assertFalse(Geometry.segmentHitsBox(0f, 10f, 20f, 10f, 5f, -2f, 10f, 2f));
+    }
+
+    @Test
+    void stationarySegmentInsideBoxHits() {
+        assertTrue(Geometry.segmentHitsBox(6f, 0f, 6f, 0f, 5f, -2f, 10f, 2f));
+    }
+
+    @Test
+    void stationarySegmentOutsideBoxMisses() {
+        assertFalse(Geometry.segmentHitsBox(20f, 0f, 20f, 0f, 5f, -2f, 10f, 2f));
     }
 
     // ---- segSegDistSq: squared distance between two segments ----

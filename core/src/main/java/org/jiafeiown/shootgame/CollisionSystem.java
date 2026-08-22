@@ -42,7 +42,12 @@ public class CollisionSystem {
                 continue;
             }
             Shooter player = world.player;
-            if (!player.dead && player.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
+            // A bullet never hurts the shooter who fired it: the muzzle sits
+            // inside the firer's own hitbox, so without this skip every shot
+            // would self-hit as soon as a high frame rate leaves the bullet
+            // inside that box on its first collision check.
+            if (!player.dead && b.owner != player
+                    && player.bulletSegmentHits(b.prevX, b.prevY, b.x, b.y, BULLET_HIT_RADIUS)) {
                 b.dead = true;
                 if (player.invincibleTime > 0f) {
                     // round-start shield absorbs the bullet
@@ -56,8 +61,8 @@ public class CollisionSystem {
                 }
             } else {
                 for (Shooter e : world.enemies) {
-                    if (e.dead) continue;
-                    if (e.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
+                    if (e.dead || e == b.owner) continue;
+                    if (e.bulletSegmentHits(b.prevX, b.prevY, b.x, b.y, BULLET_HIT_RADIUS)) {
                         b.dead = true;
                         world.audio.playHitMetal();
                         e.takeDamage(b.owner.damage, b.nx, b.ny);

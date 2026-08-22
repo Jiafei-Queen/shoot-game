@@ -37,7 +37,8 @@ public class GameWorld {
 
     private WorldRenderer renderer;
     private final EnemyAI enemyAI = new EnemyAI(this);
-    private final CollisionSystem collision = new CollisionSystem(this);
+    /** Bullet/entity collision; package-private so tests can drive a real frame. */
+    final CollisionSystem collision = new CollisionSystem(this);
     /** Round progression and match statistics; read by the renderer and collision system. */
     final RoundManager rounds = new RoundManager(this);
     /** Visual effects (particles, muzzle flashes); read by the renderer. */
