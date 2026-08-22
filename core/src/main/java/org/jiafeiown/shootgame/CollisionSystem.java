@@ -60,12 +60,14 @@ public class CollisionSystem {
                     if (e.bulletHits(b.x, b.y, BULLET_HIT_RADIUS)) {
                         b.dead = true;
                         e.takeDamage(b.owner.damage, b.nx, b.ny);
-                        if (b.owner.isPlayer) world.rounds.damageDealt += b.owner.damage;
                         world.fx.burst(b.x, b.y, Palette.enemyHit, 10, 190f);
-                        if (e.dead) {
-                            world.rounds.kills++;
-                            log.debug("Enemy #{} killed | kills={}, damageDealt={}",
-                                    world.enemies.indexOf(e, true), world.rounds.kills, world.rounds.damageDealt);
+                        if (b.owner.isPlayer) {
+                            world.rounds.damageDealt += b.owner.damage;
+                            if (e.dead) {
+                                world.rounds.kills++;
+                                log.debug("Enemy #{} killed | kills={}, damageDealt={}",
+                                        world.enemies.indexOf(e, true), world.rounds.kills, world.rounds.damageDealt);
+                            }
                         }
                         break;
                     }
