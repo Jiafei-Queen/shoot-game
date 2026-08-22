@@ -10,7 +10,7 @@ public class Shooter {
     private static final Logger log = LogManager.getLogger(Shooter.class);
     public static final float GRAVITY = 900f;
     public static final float RECOIL = 230f;
-    public static final float UP_BOOST = 400f;
+    public static final float UP_BOOST = 300f;
     public static final float UP_MIN = 200f;
     public static final float MUZZLE_OFFSET = 102f;
     public static final float BULLET_SPEED = 980f;

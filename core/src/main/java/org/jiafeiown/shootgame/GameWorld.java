@@ -55,7 +55,7 @@ public class GameWorld {
 
     public void reset() {
         log.info("Game reset");
-        player = new Shooter(true, WorldConfig.WORLD_W * 0.25f, WorldConfig.GROUND_TOP + 80f, Shooter.BASE_HP, 0.28f,
+        player = new Shooter(true, WorldConfig.WORLD_W * 0.25f, WorldConfig.GROUND_TOP + 80f, Shooter.BASE_HP, 0.14f,
                 Palette.playerBody, Palette.playerBarrel, Palette.playerGrip, Palette.playerSlide,
                 Palette.playerBullet, Palette.playerBulletCore);
         player.spin = 2.2f;

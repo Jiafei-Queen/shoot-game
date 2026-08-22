@@ -91,7 +91,7 @@ public class AudioManager {
             pauseLoop.setVolume(pauseVolume);
             pauseLoop.play();
         }
-        pauseTarget = 1f;
+        pauseTarget = 0.8f;
     }
 
     /** Fades the looping pause-menu music out; it stops once silent. */
