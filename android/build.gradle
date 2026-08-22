@@ -1,0 +1,93 @@
+plugins {
+  id 'com.android.application' version '9.3.1'
+}
+
+// libGDX's Android natives ship as jars with the .so at the jar root, which
+// AGP won't package on its own: the `natives` configuration + the
+// copyAndroidNatives task below unpack them into build/gdx-natives/<abi>/,
+// which the jniLibs source set points at.
+configurations { natives }
+
+android {
+  namespace 'org.jiafeiown.shootgame.android'
+  compileSdk 36
+
+  defaultConfig {
+    applicationId "org.jiafeiown.shootgame"
+    // 26 (Android 8.0) because log4j-core needs MethodHandle support that D8
+    // only allows from API 26 onward; the game itself would run on older API.
+    minSdk 26
+    targetSdk 36
+    versionCode 1
+    versionName "1.0"
+  }
+
+  // log4j-core and log4j-api both ship META-INF/DEPENDENCIES (and friends);
+  // only one copy of each legal file is needed in the APK.
+  packaging {
+    resources {
+      excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/NOTICE']
+    }
+  }
+
+  // Share the root assets/ folder straight into the APK, no copy needed, and
+  // consume the unpacked gdx natives from build/gdx-natives.
+  sourceSets {
+    main {
+      assets.srcDirs = ['../assets']
+      jniLibs.srcDirs = ['build/gdx-natives']
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_21
+    targetCompatibility JavaVersion.VERSION_21
+  }
+
+  buildTypes {
+    release {
+      minifyEnabled false
+    }
+  }
+}
+
+dependencies {
+  implementation "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
+  natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-armeabi-v7a"
+  natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-arm64-v8a"
+  natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86"
+  natives "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-x86_64"
+  implementation project(':core')
+  // log4j-api comes from core; the concrete implementation is only needed at
+  // runtime (log4j2.xml lives in android/src/main/resources).
+  runtimeOnly "org.apache.logging.log4j:log4j-core:$log4j2Version"
+}
+
+/** Unpacks gdx's native libraries into build/gdx-natives/<abi>/libgdx.so. */
+def gdxNativesDir = layout.buildDirectory.dir('gdx-natives')
+tasks.register('copyAndroidNatives') {
+  doFirst {
+    gdxNativesDir.get().asFile.mkdirs()
+    configurations.natives.files.each { jar ->
+      def outputDir = null
+      if (jar.name.endsWith('natives-arm64-v8a.jar')) outputDir = file('build/gdx-natives/arm64-v8a')
+      if (jar.name.endsWith('natives-armeabi-v7a.jar')) outputDir = file('build/gdx-natives/armeabi-v7a')
+      if (jar.name.endsWith('natives-x86_64.jar')) outputDir = file('build/gdx-natives/x86_64')
+      if (jar.name.endsWith('natives-x86.jar')) outputDir = file('build/gdx-natives/x86')
+      if (outputDir != null) {
+        copy {
+          from zipTree(jar)
+          into outputDir
+          include '*.so'
+        }
+      }
+    }
+  }
+}
+
+// every task that merges jniLib folders must run after the natives are unpacked
+tasks.configureEach { task ->
+  if (task.name.contains('merge') && task.name.contains('JniLibFolders')) {
+    task.dependsOn tasks.named('copyAndroidNatives')
+  }
+}

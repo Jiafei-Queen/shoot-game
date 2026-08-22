@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Log4j2 configuration for Android. Console-only: logcat is the log sink,
+  there is no writable file system for a RollingFile appender.
+-->
+<Configuration status="WARN">
+  <Appenders>
+    <Console name="Console" target="SYSTEM_OUT">
+      <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5level [%t] %logger{24} - %msg%n"/>
+    </Console>
+  </Appenders>
+  <Loggers>
+    <!-- libGDX / Android backend internals are noisy; keep them quiet. -->
+    <Logger name="gdx" level="INFO" additivity="false">
+      <AppenderRef ref="Console"/>
+    </Logger>
+    <Logger name="com.badlogic" level="WARN" additivity="false">
+      <AppenderRef ref="Console"/>
+    </Logger>
+    <Root level="INFO">
+      <AppenderRef ref="Console"/>
+    </Root>
+  </Loggers>
+</Configuration>

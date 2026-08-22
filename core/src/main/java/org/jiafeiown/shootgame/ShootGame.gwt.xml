@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GWT "library module" for the shared game code. The GWT compiler only
+  translates classes whose packages are on some module's source path, and a
+  module's source path is rooted at its own package directory — so core must
+  declare itself as a library module here, and the html module inherits it:
+
+      <inherits name='org.jiafeiown.shootgame.ShootGame' />
+
+  `<source path="" />` marks this package (org.jiafeiown.shootgame, and every
+  subpackage below it) as translatable. This file is compile-time input for
+  GWT only; the JVM builds (desktop/Android) never read it.
+-->
+<module>
+    <source path="" />
+</module>

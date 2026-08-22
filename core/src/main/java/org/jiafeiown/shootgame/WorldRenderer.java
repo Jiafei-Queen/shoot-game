@@ -94,6 +94,7 @@ public class WorldRenderer {
         shape.end();
 
         drawHud();
+        drawPauseButton();
         drawRoundBanner();
         if (world.rounds.isPaused()) drawPauseMenu();
     }
@@ -290,7 +291,8 @@ public class WorldRenderer {
             // TOTAL TIME estadísticas
             int minutes = (int) (world.time / 60f);
             int seconds = (int) world.time % 60;
-            String timeStr = String.format("%02d:%02d", minutes, seconds);
+            // GWT's Java emulation has no String.format, so pad by hand
+            String timeStr = (minutes < 10 ? "0" : "") + minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
             font.getData().setScale(1.7f);
             layout.setText(font, timeStr);
             font.setColor(Palette.hintCol);
@@ -299,8 +301,9 @@ public class WorldRenderer {
             font.getData().setScale(1.6f);
 
             font.setColor(Palette.hintCol);
-            layout.setText(font, "Press R to restart");
-            font.draw(batch, "Press R to restart", (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.30f);
+            String restartHint = GameWorld.isTouchDevice() ? "Tap to restart" : "Press R to restart";
+            layout.setText(font, restartHint);
+            font.draw(batch, restartHint, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.30f);
         } else {
             // top-left counters: enemies killed and current round
             font.getData().setScale(2.5f);
@@ -317,7 +320,9 @@ public class WorldRenderer {
 
             font.getData().setScale(1.6f);
             font.setColor(Palette.hintCol);
-            String hint = "Hold SPACE to shoot   ·   R to restart";
+            String hint = GameWorld.isTouchDevice()
+                    ? "Hold screen to shoot   ·   Tap top-right to pause"
+                    : "Hold SPACE to shoot   ·   R to restart";
             layout.setText(font, hint);
             font.draw(batch, hint, (WorldConfig.WORLD_W - layout.width) * 0.5f, 38f);
 
@@ -446,11 +451,32 @@ public class WorldRenderer {
 
         font.getData().setScale(1.3f);
         font.setColor(Palette.hintCol.r, Palette.hintCol.g, Palette.hintCol.b, 0.7f * fade);
-        String hint = "ESC to resume";
+        String hint = GameWorld.isTouchDevice() ? "Tap an option" : "ESC to resume";
         layout.setText(font, hint);
         font.draw(batch, hint, (WorldConfig.WORLD_W - layout.width) * 0.5f, WorldConfig.WORLD_H * 0.16f);
 
         batch.end();
+    }
+
+    /** Top-right pause button: a rounded square with the classic "II" pause
+     *  bars. A tap does what ESC does (see {@link GameWorld#handleInput()}).
+     *  Drawn while the HUD is up, so it stays visible through the slow-mo
+     *  wind-down and steps aside on the game-over and fully-paused screens. */
+    private void drawPauseButton() {
+        if (world.rounds.isGameOver() || world.rounds.isFullyPaused()) return;
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shape.begin(ShapeRenderer.ShapeType.Filled);
+        shape.setColor(0f, 0f, 0f, 0.38f);
+        roundedRect(GameWorld.PAUSE_BTN_X, GameWorld.PAUSE_BTN_Y,
+                GameWorld.PAUSE_BTN_SIZE, GameWorld.PAUSE_BTN_SIZE, 12f);
+        shape.setColor(Palette.textCol);
+        float barW = 6f, barH = 26f;
+        float cx = GameWorld.PAUSE_BTN_X + GameWorld.PAUSE_BTN_SIZE * 0.5f;
+        float cy = GameWorld.PAUSE_BTN_Y + GameWorld.PAUSE_BTN_SIZE * 0.5f;
+        shape.rect(cx - barW - 3f, cy - barH * 0.5f, barW, barH);
+        shape.rect(cx + 3f, cy - barH * 0.5f, barW, barH);
+        shape.end();
     }
 
     /**
@@ -471,6 +497,12 @@ public class WorldRenderer {
             }
         }
         return -1;
+    }
+
+    /** True when the world-space point (x, y) lies on the pause button. */
+    boolean pauseButtonAt(float x, float y) {
+        return x >= GameWorld.PAUSE_BTN_X && x <= GameWorld.PAUSE_BTN_X + GameWorld.PAUSE_BTN_SIZE
+                && y >= GameWorld.PAUSE_BTN_Y && y <= GameWorld.PAUSE_BTN_Y + GameWorld.PAUSE_BTN_SIZE;
     }
 
     private Color lerpCol(Color a, Color b, float t) {

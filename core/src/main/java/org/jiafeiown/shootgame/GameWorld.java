@@ -26,6 +26,15 @@ public class GameWorld {
     /** Y of the first (top) option's baseline; the rest sit below it. */
     static final float PAUSE_MENU_START_Y = WorldConfig.WORLD_H * 0.5f;
 
+    /** Top-right pause button (mobile/web; also clickable on desktop). A tap
+     *  on it does exactly what ESC does: {@link RoundManager#pause()} with the
+     *  slow-mo wind-down and the pause menu. World-space rect, shared between
+     *  the hit-testing here and the drawing in {@link WorldRenderer}. */
+    static final float PAUSE_BTN_SIZE = 56f;
+    static final float PAUSE_BTN_MARGIN = 20f;
+    static final float PAUSE_BTN_X = WorldConfig.WORLD_W - PAUSE_BTN_SIZE - PAUSE_BTN_MARGIN;
+    static final float PAUSE_BTN_Y = WorldConfig.WORLD_H - PAUSE_BTN_SIZE - PAUSE_BTN_MARGIN;
+
     private WorldRenderer renderer;
     private final EnemyAI enemyAI = new EnemyAI(this);
     private final CollisionSystem collision = new CollisionSystem(this);
@@ -123,15 +132,47 @@ public class GameWorld {
             return;
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.R)) reset();
-        if (rounds.isGameOver()) return;
+        if (rounds.isGameOver()) {
+            // touch devices have no R key; a tap anywhere restarts (a mouse
+            // click works too, matching the pause menu's click interactions)
+            if (Gdx.input.justTouched()) {
+                log.info("Restarting via tap after game over");
+                reset();
+            }
+            return;
+        }
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             rounds.pause();
             log.info("Game paused (round {})", rounds.round);
             return;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.SPACE) && player.fireCooldown <= 0f) {
+        if (Gdx.input.justTouched() && pauseButtonHit(0)) {
+            rounds.pause();
+            log.info("Game paused via pause button (round {})", rounds.round);
+            return;
+        }
+        if (fireHeld() && player.fireCooldown <= 0f) {
             fire(player);
         }
+    }
+
+    /** True while the player wants to fire: SPACE held (desktop) or any touch
+     *  down outside the pause button (mobile/web, and mouse-hold on desktop).
+     *  A quick tap fires one shot; holding keeps firing on cooldown, exactly
+     *  like holding SPACE. */
+    private boolean fireHeld() {
+        if (Gdx.input.isKeyPressed(Input.Keys.SPACE)) return true;
+        for (int i = 0; i < 10; i++) {
+            if (Gdx.input.isTouched(i) && !pauseButtonHit(i)) return true;
+        }
+        return false;
+    }
+
+    /** True if pointer {@code pointer}'s current screen position lies on the
+     *  top-right pause button. Touches that start there must pause, never fire. */
+    private boolean pauseButtonHit(int pointer) {
+        float[] p = renderer.unproject(Gdx.input.getX(pointer), Gdx.input.getY(pointer));
+        return renderer.pauseButtonAt(p[0], p[1]);
     }
 
     /** Pause menu interactions: ESC resumes (or cancels a resume in progress),
@@ -147,7 +188,7 @@ public class GameWorld {
             }
             return;
         }
-        if (!Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) return;
+        if (!Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && !Gdx.input.justTouched()) return;
         float[] p = renderer.unproject(Gdx.input.getX(), Gdx.input.getY());
         switch (renderer.pauseOptionAt(p[0], p[1])) {
             case 0: // CONTINUE
@@ -184,6 +225,20 @@ public class GameWorld {
 
     public void resize(int width, int height) {
         renderer.resize(width, height);
+    }
+
+    /** True on touch-first platforms (Android/iOS/Web). Desktop keeps the
+     *  keyboard as the primary input; the shared code uses this to pick
+     *  platform-appropriate hints and input behaviour. */
+    static boolean isTouchDevice() {
+        switch (Gdx.app.getType()) {
+            case Android:
+            case iOS:
+            case WebGL:
+                return true;
+            default:
+                return false;
+        }
     }
 
     public void dispose() {

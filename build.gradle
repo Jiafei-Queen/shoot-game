@@ -25,34 +25,39 @@ allprojects {
 }
 
 configure(subprojects) {
-  apply plugin: 'java-library'
-  java.sourceCompatibility = 21
-  java.targetCompatibility = 21
+  // The Android module uses the Android Gradle plugin, which manages its own
+  // Java compilation and resource processing; the generic java-library setup
+  // below would conflict with it, so it is skipped there.
+  if (project.name != 'android') {
+    apply plugin: 'java-library'
+    java.sourceCompatibility = 21
+    java.targetCompatibility = 21
 
-  // From https://lyze.dev/2021/04/29/libGDX-Internal-Assets-List/
-  // The article can be helpful when using assets.txt in your project.
-  tasks.register('generateAssetList') {
-    inputs.dir("${project.rootDir}/assets/")
-    // projectFolder/assets
-    File assetsFolder = new File("${project.rootDir}/assets/")
-    // projectFolder/assets/assets.txt
-    File assetsFile = new File(assetsFolder, "assets.txt")
-    // delete that file in case we've already created it
-    assetsFile.delete()
+    // From https://lyze.dev/2021/04/29/libGDX-Internal-Assets-List/
+    // The article can be helpful when using assets.txt in your project.
+    tasks.register('generateAssetList') {
+      inputs.dir("${project.rootDir}/assets/")
+      // projectFolder/assets
+      File assetsFolder = new File("${project.rootDir}/assets/")
+      // projectFolder/assets/assets.txt
+      File assetsFile = new File(assetsFolder, "assets.txt")
+      // delete that file in case we've already created it
+      assetsFile.delete()
 
-    // iterate through all files inside that folder
-    // convert it to a relative path
-    // and append it to the file assets.txt
-    fileTree(assetsFolder).collect { assetsFolder.relativePath(it) }.sort().each {
-      if (!it.toString().startsWith("logs")) { // skip log4j2 runtime logs
-        assetsFile.append(it + "\n")
+      // iterate through all files inside that folder
+      // convert it to a relative path
+      // and append it to the file assets.txt
+      fileTree(assetsFolder).collect { assetsFolder.relativePath(it) }.sort().each {
+        if (!it.toString().startsWith("logs")) { // skip log4j2 runtime logs
+          assetsFile.append(it + "\n")
+        }
       }
     }
-  }
-  processResources.dependsOn 'generateAssetList'
+    processResources.dependsOn 'generateAssetList'
 
-  compileJava {
-    options.incremental = true
+    compileJava {
+      options.incremental = true
+    }
   }
 }
 
@@ -61,6 +66,10 @@ subprojects {
   ext.appName = 'ShootGame'
   repositories {
     mavenCentral()
+    // AndroidX and the Android Gradle plugin's runtime deps live only on
+    // Google Maven; without this, resolution falls back to mirrors that
+    // either 404 or flake out.
+    google()
     // You may want to remove the following line if you have errors downloading dependencies.
     mavenLocal()
     maven { url = 'https://central.sonatype.com/repository/maven-snapshots/' }

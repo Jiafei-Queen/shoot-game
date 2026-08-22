@@ -1,0 +1,80 @@
+plugins {
+  id 'java'
+}
+
+dependencies {
+  implementation project(':core')
+  implementation "com.badlogicgames.gdx:gdx-backend-gwt:$gdxVersion"
+  implementation "com.badlogicgames.gdx:gdx-backend-gwt:$gdxVersion:sources"
+  implementation "com.badlogicgames.gdx:gdx:$gdxVersion"
+  implementation "com.badlogicgames.gdx:gdx:$gdxVersion:sources"
+  implementation "org.gwtproject:gwt-user:2.11.0"
+  implementation "org.gwtproject:gwt-dev:2.11.0"
+}
+
+// ---------------------------------------------------------------------------
+// GWT compile. libGDX's HTML5 backend is compiled from source (GWT 2.11), so
+// this module's own sources AND core's sources must be on the compiler's
+// classpath; the library sources (gdx, gdx-backend-gwt) come in via their
+// "-sources" jars above.
+//
+// The preloader generator (gdx-backend-gwt) copies the game's assets into the
+// war directory during compilation: it resolves "gdx.assetpath" (see
+// HtmlLauncher.gwt.xml) against the compiler's working directory, which is why
+// the task runs with cwd = the war output directory and "-war .".
+// ---------------------------------------------------------------------------
+tasks.register('gwtCompile', JavaExec) {
+  group = 'web'
+  description = 'Compiles the game to JavaScript (GWT) into build/gwt/war'
+
+  dependsOn tasks.named('classes')
+
+  def warDir = layout.buildDirectory.dir('gwt/war')
+  workingDir = warDir
+  doFirst {
+    warDir.get().asFile.mkdirs()
+  }
+
+  mainClass = 'com.google.gwt.dev.Compiler'
+  classpath = files(
+      sourceSets.main.runtimeClasspath,
+      // raw source dirs: this module's launcher + stubs, and core's game code
+      sourceSets.main.java.srcDirs,
+      project(':core').sourceSets.main.java.srcDirs
+  )
+
+  jvmArgs '-Xmx2G'
+  // GWT on JDK 21 needs access to internal javac/reflect APIs; without these
+  // the compiler fails with InaccessibleObjectException.
+  jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/java.util=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/java.lang.reflect=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/java.text=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.desktop/java.awt.font=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.desktop/java.beans=ALL-UNNAMED'
+
+  args '-war', '.',
+       '-sourceLevel', '11',
+       '-logLevel', 'INFO',
+       '-XdisableCastChecking',
+       'org.jiafeiown.shootgame.html.HtmlLauncher'
+}
+
+/** Copies the host page (index.html) into the compiled war directory. */
+tasks.register('processWebapp', Copy) {
+  group = 'web'
+  description = 'Copies the HTML host page into the GWT war output'
+  dependsOn tasks.named('gwtCompile')
+  from 'src/main/webapp'
+  into layout.buildDirectory.dir('gwt/war')
+}
+
+/** Zips the deployable web build (the whole war directory). */
+tasks.register('gwtDist', Zip) {
+  group = 'web'
+  description = 'Packages the compiled web build into a deployable zip'
+  dependsOn tasks.named('processWebapp')
+  archiveFileName = 'shootgame-html.zip'
+  destinationDirectory = layout.buildDirectory.dir('dist')
+  from layout.buildDirectory.dir('gwt/war')
+}

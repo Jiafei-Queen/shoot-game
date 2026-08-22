@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC "-//Google Inc.//DTD Google Web Toolkit 2.11.0//EN" "https://www.gwtproject.org/doctype/2.11.0/gwt-module.dtd">
+<module rename-to="html">
+    <inherits name='com.badlogic.gdx.backends.gdx_backends_gwt' />
+    <!-- the shared game code (org.jiafeiown.shootgame) becomes translatable
+         through this inherited library module -->
+    <inherits name='org.jiafeiown.shootgame.ShootGame' />
+
+    <entry-point class='org.jiafeiown.shootgame.html.HtmlLauncher' />
+
+    <!-- GWT cannot compile log4j-api; these minimal stubs (LogManager/Logger)
+         replace it during the web build only (see super/...). -->
+    <super-source path="super" />
+
+    <!-- Relative to the GWT compiler's working directory (build/gwt/war):
+         4 levels up = project root, then the shared assets/ folder. The
+         preloader generator copies them into the war next to the JS. -->
+    <set-configuration-property name="gdx.assetpath" value="../../../../assets" />
+</module>
