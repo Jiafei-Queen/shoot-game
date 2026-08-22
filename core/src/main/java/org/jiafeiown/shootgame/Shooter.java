@@ -17,7 +17,6 @@ public class Shooter {
     public static final float KNOCKBACK = 130f;
     public static final int BULLET_DAMAGE = 14;
     public static final int BASE_HP = 100;
-    public static final float SPIN_STUN = 0.9f;
 
     public final boolean isPlayer;
     public float x, y, vx, vy, angle;
@@ -29,7 +28,6 @@ public class Shooter {
     public boolean grounded;
     public float recoilVis = 0f;
     public float spin = 2.2f;
-    public float spinStun = 0f;
     public int damage;
     public float dodgeCooldown;
     public int burst;
@@ -100,11 +98,8 @@ public class Shooter {
             vx *= (1f - Math.min(1f, 0.2f * dt));
         }
 
-        // the muzzle spins while airborne; resting on the ground (or a
-        // recent bullet hit) halts the rotation
-        if (spinStun > 0f) {
-            spinStun -= dt;
-        } else if (!grounded) {
+        // the muzzle spins while airborne; resting on the ground halts the rotation
+        if (!grounded) {
             angle += spin * dt;
             if (angle > MathUtils.PI2) angle -= MathUtils.PI2;
             else if (angle < -MathUtils.PI2) angle += MathUtils.PI2;
@@ -199,8 +194,6 @@ public class Shooter {
         if (hp < 0) hp = 0;
         vx += nx * KNOCKBACK;
         vy += ny * KNOCKBACK;
-        // being hit interrupts the spinning muzzle
-        spinStun = SPIN_STUN;
         if (hp == 0) {
             dead = true;
             log.debug("{} died ({} damage taken)", isPlayer ? "Player" : "Enemy", dmg);

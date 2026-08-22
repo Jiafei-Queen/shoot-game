@@ -96,6 +96,25 @@ class ShooterPhysicsTest {
     }
 
     @Test
+    void takeDamageKeepsMuzzleSpinning() {
+        Shooter s = shooter(400f, 500f, 0f, 0f);
+        s.spin = 2.2f;
+        s.update(DT);
+        float angleBefore = s.angle;
+        s.takeDamage(10, 1f, 0f);
+        s.update(DT);
+        assertEquals(angleBefore + 2.2f * DT, s.angle, EPS);
+    }
+
+    @Test
+    void takeDamageAppliesKnockbackAlongBulletDirection() {
+        Shooter s = shooter(400f, 500f, 0f, 0f);
+        s.takeDamage(10, 1f, 0f);
+        assertEquals(Shooter.KNOCKBACK, s.vx, EPS);
+        assertEquals(0f, s.vy, EPS);
+    }
+
+    @Test
     void halfExtentsDependOnAngle() {
         Shooter s = shooter(0f, 0f, 0f, 0f);
         s.angle = 0f;
